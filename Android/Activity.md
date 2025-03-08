@@ -204,7 +204,7 @@ Intent intent = new Intent();
 intent.setClass(MainActivity.this, SecondActivity.class);
 startActivity(intent);
 ```
-# 9.2 隐式启动
+## 9.2 隐式启动
 1. 基本概念  
 Activity的隐式启动是通过声明一组条件（如action/category/data）,由系统匹配符合条件的组件来启动Activity的方式，格式形如：  
 ```xml
@@ -255,7 +255,7 @@ Intent只能设置一个data
 Intent-filter如果设置了data，Intent必须匹配其中一个data，每个字段都必须匹配
 
 
-# 9.3 注意事项  
+## 9.3 注意事项  
 - 如果Activity设置了`exported=true`,此时如果是内部跳转，仍然可以跳转成功，如果是外部跳转（其他App），会报`SecurityException`
 - 如果跳转的Activity不存在，会报`ActivityNotFoundException`异常
 
@@ -263,6 +263,40 @@ Intent-filter如果设置了data，Intent必须匹配其中一个data，每个�
 # 10 scheme使用场景、协议格式、如何使用
 scheme是一种页面内跳转协议，隐式启动中的data字段一般遵循scheme格式，广义上来讲，常见的deeplink是一种特殊的scheme协议  
 
+```xml
+<activity android:name=".ui.DeepLinkActivity">
+    <intent-filter>
+        <!-- 指定支持的 Scheme
+            scheme字段定义协议名称，host定义了主机域名
+         -->
+        <data android:scheme="myapp"
+              android:host="home" />
+        
+        <!-- 允许外部调用 -->
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <!-- 允许从浏览器打开 -->
+        <category android:name="android.intent.category.BROWSABLE" />
+    </intent-filter>
+</activity>
+
+```
+App内跳转
+```kotlin
+val intent = Intent(Intent.ACTION_VIEW, Uri.parse("myapp://home?user=123"))
+startActivity(intent)
+```
+
+除此之外，还能直接用于前端网页跳转
+```xml
+<a href="myapp://home?user=123">打开 App</a>
+```
+ADB指令打开
+```shell
+adb shell am start -a android.intent.action.VIEW -d "myapp://home?user=123"
+```
+
+在Android12之后，android:exported="true" 必须显式声明，否则可能无法跳转
 
 # 11 ANR的四种场景
 - Service TimeOut：Service未在规定时间执行完成，前台20s，后台200s
@@ -288,6 +322,13 @@ Activity的生命周期阻塞并不在触发ANR场景里，并不会直接造成
 5. 文件
 
 # 14 跨App启动Activity方式
+1. 使用IntentFilter隐式跳转  
+如果有两个action属性相同的Activity，那么在启动时手机系统会让用户手动选择，为了避免这种情况， 需要设置category、data等字段  
+
+2. 如何防止自己的Activity被外部恶意启动  
+- 私有权限
+- 签名校验
+- 包名校验
 
 
 # 15 Activity的任务栈是什么
@@ -301,4 +342,56 @@ Activity的生命周期阻塞并不在触发ANR场景里，并不会直接造成
 2. `FLAG_ACTIVITY_SINGLE_TOP` 指定Activity启动模式为`singleTop`, 效果与AndroidManifest中指定`launchMode = "singleTop"`相同
 3. `FLAG_ACTIVITY_CLEAR_TOP` Activity启动时，会将栈中位于它上方的Activity全部清除，一般和singleTask一起使用，如果被启动的Activity实例存在，那么会触发onNewIntent
 
+# 17 Activity被回收之后，onSaveInstanceState与onRestoreInstance调用流程是怎样的？
 
+## 17.1 onSaveInstanceState触发时机
+当系统需要销毁Activity时（屏幕旋转、内存回收、进程终止），会触发onSaveInstanceState方法保存数据（如果是用户手动back杀死Activity，则不会触发）,生命周期顺序:onPause->onSaveInstanceState->onStop
+
+```java
+// Activity.java
+protected void onSaveInstanceState(Bundle outState) {
+    // 用于存储 Activity 状态
+}
+```
+
+这个方法参数`outState` 用于存储数据，最终传递给`ActivityThread`持久化存储  
+```java
+// ActivityThread.java
+private void performPauseActivity(ActivityClientRecord r, boolean finished) {
+    ...
+    if (r.activity != null) {
+    
+        Bundle outState = new Bundle();
+        // 此时调用Activity的onSaveInstanceState()
+        mInstrumentation.callActivityOnSaveInstanceState(r.activity, outState);
+        // 存储outState
+        r.state = outState;
+    }
+}
+```
+outState存在ActivityClientRecord中，ActivityThread中有一个属性叫mActivities（map结构），专用于保存Activity数据
+```java
+// ActivityThread.java
+final ArrayMap<IBinder, ActivityClientRecord> mActivities = new ArrayMap<>();
+
+```
+## 17.2 onRestoreInstanceState的恢复过程
+当Activity重建时，ActivityThread会从mActivities中取出保存的ActivityClientRecord实例对象中的Bundle，传值给onCreate  
+
+```java
+// ActivityThread.java
+private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+    ...
+    Activity activity = mInstrumentation.newActivity(cl, component.getClassName(), r.intent);
+    if (r.state != null) {
+        r.activity.attach(...);
+        // 调用被恢复的Activity
+        r.activity.performCreate(r.state);
+    }
+}
+```
+如果mActivities中的数据不为空，那么onRestoreInstanceState进行额外恢复
+
+onCreate和onRestoreInstanceState都能恢复数据，但是onCreate调用时，View层级已经创建，但是尺寸和布局还没有计算完成，不适合做UI逻辑处理，onRestoreInstanceState在onStart之后调用，所有View已经初始化完毕，不存在这个问题  
+onCreate除了在异常重建时调用，还会在正常Activity启动时调用，习惯上，onCreate更适合做业务逻辑初始化，onRestoreInstanceState只会在saveInstanceState不为空时调用，更适合做恢复  
+此外，onCreate发生在Activity启动不可见时，如果业务逻辑过于复杂，容易造成ANR，体验更糟糕
