@@ -9,7 +9,10 @@ Service是用于执行后台任务或者跨进程通信的核心组件，设计�
 如果是短时间任务，如网络请求，可以考虑用线程、协程代替  
 如果是延迟、定时任务，可以考虑用WorkManager代替
 
+
 # 1 Service的生命周期、两种启动方式的区别
+
+startService和bindService最大的区别就是前者独立运行，后者绑定组件（一般是Activity，但也可以是Fragment、Application）
 
 - **startService**  
 onCreate->onStartCommand->onDestroy  
@@ -33,7 +36,34 @@ startService
 
 # 2 Service启动流程
 
+# 2.1 startService流程
+
 ![Service启动流程图](./../images/Service启动流程图.png)
+
+1. Process A进程采用Binder IPC向system_server进程（AMS）发起startService请求  
+2. system_server进程接收到请求后，向Zygote进程发送创建进程请求  
+3. Zygote进程fork子进程  
+4. App进程，通过Binder IPC向system_server进程发起attachApplication请求  
+5. system_server进程在收到请求后，进行一系列准备工作后，再通过Binder IPC向App进程发起scheduleCreateService请求  
+6. App进程的Binder线程接收到请求后，通过Handler向主线程发送CREATE_SERVICE消息  
+7. 主线程在收到Message后，通过发射机制创建目标Service，并回调Service.onCreate方法  
+
+如果App进程已经存在，那么跳过2、3步骤
+
+# 2.2 bindService流程
+
+1. Process A进程发起bindService请求，ContextImpl.bindService接口被调用，通过Binder IPC向system_server进程发起请求  
+2. system_server进程中的AMS收到请求，解析Intent数据，先判断是否有权限（没有权限直接抛出异常），然后通过Process.start向Zygote进程发起创建进程请求  
+3. Zygote接收到请求后，fork子进程，执行ActivityThread.main作为App进程入口，以下是App进程初始化流程：  
+- 创建ActivityThread:App主线程初始化，创建ApplicationThread，并注册到AMS  
+- 绑定到AMS：通过IActivityManager.attachApplication通知AMS进程已启动  
+- AMS回调：AMS收到attachApplication后，完成进程App进程初始化
+4. AMS通过IApplicationThread.scheduleBindService，通知Process A绑定Service，A的处理逻辑：  
+- 创建Service实例，通过反射调用目标Service构造函数，执行Service.onCreate  
+- 调用onBind，并返回Service。onBind，返回IBinder对象，用于IPC  
+- 通过IActivityManager.publishService发送回AMS  
+5. AMS收到App的IBinder对象后，传递给调用方Process A，A回调onServiceConnected接口  
+6. Process A获得IBinder对象后，与App进程的跨进程通信就建立了，可以将其转换成AIDL进行IPC  
 
 # 3 Service与Activity如何通信
 ## 3.1 通过Binder对象  
