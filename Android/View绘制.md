@@ -1,6 +1,24 @@
-# View
-## View的添加过程
-
-## 为什么View只能在主线程中操作
-
-## 自定义View
+1 View绘制流程  
+2 MeasureSpec是什么  
+3 子View创建MeasureSpec创建规则是什么  
+4 自定义View,wrap_content不起作用的原因  
+5 在Activity中获取某个View的宽高有几种方法  
+6 为什么onCreate获取不到View的宽高  
+7 View.post和Handler.post的区别  
+8 Android绘制和屏幕刷新机制的原理  
+9 Choreography原理  
+10 什么是双缓冲  
+11 什么是SurfaceView，为什么使用SurfaceView  
+12 View和SurfaceView的区别  
+13 SufraceView为什么可以直接子线程绘制  
+14 SurfaceView、TextureView、SurfaceTexture、GLSurfaceView区别  
+15 getWidth和getMeasureWidth的区别  
+16 invalidate和postInvalidate的区别  
+17 Requestlayout、onLayout、onDraw、DrawChild的区别和联系  
+18 LinearLayout、FrameLayout、RelativeLayout哪个效率高  
+19 LinearLayout的绘制流程  
+20 自定义View的流程和注意事项  
+21 自定义View如何考虑机型适配  
+22 自定义控件优化方案  
+23 invalidate如何局部刷新  
+24 View加载流程  
