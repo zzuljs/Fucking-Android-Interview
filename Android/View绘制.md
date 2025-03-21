@@ -375,6 +375,21 @@ View之所以必须在主线程中更新，是因为View更新时调用一系列
 SurfaceView绕过了传统的View模型，不参与View的绘制，使用独立的Surface，可以视为一个独立的图层，底层使用双缓冲技术，使View更新由子线程驱动，释放了主线程资源，适合一些无需计较资源消耗的高性能页面（如游戏、相机等）更新，代价是更高的内存占用、更高的系统资源消耗（如耗电）
 
 # 14 SurfaceView、TextureView、SurfaceTexture、GLSurfaceView区别  
+
+### SurfaceView、TextureView、SurfaceTexture、GLSurfaceView 对比
+
+| **特性**                         | **SurfaceView**                        | **TextureView**                      | **SurfaceTexture**                  | **GLSurfaceView**                    |
+|----------------------------------|----------------------------------|----------------------------------|----------------------------------|----------------------------------|
+| **继承自**                        | `View`                           | `View`                           | `Object`                         | `SurfaceView`                     |
+| **渲染方式**                      | 使用独立 `Surface` 进行绘制       | 作为 GPU 纹理绘制                 | 绑定到 OpenGL 纹理                | 使用 OpenGL 进行绘制               |
+| **线程模型**                      | 独立线程，避免 UI 卡顿             | UI 线程                          | 独立线程                          | 独立线程                          |
+| **是否支持 View 变换（旋转、缩放、透明）** | ❌ 不支持                         | ✅ 支持                          | ✅ 需要手动处理                   | ❌ 不支持                          |
+| **是否支持与 UI 组件混合**          | ❌ 不支持，会被 UI 遮挡            | ✅ 支持                          | ✅ 需要手动集成                   | ❌ 不支持                          |
+| **是否依赖硬件加速**                | ❌ 不依赖                         | ✅ 依赖                          | ❌ 不依赖                         | ❌ 不依赖                          |
+| **适合渲染的内容**                 | 视频、2D 游戏、绘制动画            | 视频、相机预览、UI 动画            | OpenGL 纹理、相机预览              | OpenGL 3D 渲染、游戏               |
+| **性能**                         | 高效，渲染不影响 UI 线程           | 略低，影响 UI 线程性能            | 高效，适用于 OpenGL               | 高效，专为 OpenGL 设计             |
+| **使用 OpenGL**                   | ❌ 不能直接使用                    | ❌ 不能直接使用                    | ✅ 可与 OpenGL 结合               | ✅ 专门为 OpenGL 设计             |
+
 # 15 getWidth和getMeasureWidth的区别  
 
 getMeasuredWidth获取的是setMeasuredDimension方法的值，由父View的MeasureSpec和子View的LayoutParams共同确定，是一个理论值，有可能与最终可见View大小不同，在measure方法调用之后确定，通常在onMeasure方法中使用  
@@ -579,7 +594,7 @@ public class CustomView extends View {
 
 setContentView是Activity构建UI的核心入口，调用链：Activity.setContentView->PhoneWindow.setContentView->LayoutInflater.inflate->View树构建->DecorView添加到Window  
 
-## 24.1 PhoneWindow初始化  
+## 24.1 PhoneWindow创建Window  
 PhoneWindow是Activity窗口实现类，继承自抽象类Window，通过WindowManager添加、删除、更新，主要用来管理窗口装饰（如状态栏），内容容器创建，与Activity生命周期相同
 ```java
 // Activity.java
@@ -588,8 +603,8 @@ public void setContentView(@LayoutRes int layoutResID) {
     initWindowDecorActionBar(); // 初始化 ActionBar（若有）
 }
 ```
+创建DecorView，并初始化
 
-## 24.2 DecorView初始化  
 ```java
 // PhoneWindow.java
 public void setContentView(int layoutResID) {
@@ -600,7 +615,57 @@ public void setContentView(int layoutResID) {
     mLayoutInflater.inflate(layoutResID, mContentParent);
 }
 ```
+installDecor核心逻辑有两个：1.生成DecorView；2.初始化内容容器mContentParent.
+```java
+// installDecor简化版代码
+
+mDecor = generateDecor(); // new DecorView(context)
+mDecor.setWindow(this);
+
+ViewGroup contentParent = generateLayout(mDecor);
+mContentParent = contentParent; // 通常是 FrameLayout
+```
+generateLayout作用：1.根据窗口特性（主题、Feature）选择预定义布局；2.从主题中设置windowBackground/windowFrame等属性到DecorView；3.返回contentParent（id为R.id.content的FrameLayout
+
+
+## 24.2 LayoutInflater解析布局
+```java
+// LayoutInflater.java
+public View inflate(@LayoutRes int resource, @Nullable ViewGroup root) {
+    XmlResourceParser parser = getResource().getLayout(resource);
+    return inflate(parser, root, root != null);
+}
+
+// 实际解析方法
+public View inflate(XmlPullParser parser, ViewGroup root, boolean attachToRoot) {
+    // 递归解析 XML 节点
+    while ((type = parser.next()) != XmlPullParser.END_DOCUMENT) {
+        final View view = createViewFromTag(parent, name, context, attrs);
+        // 构建 View 树
+        if (root != null && attachToRoot) {
+            root.addView(view, params);
+        }
+    }
+    return root;
+}
+```
+核心方法：
+`createViewFromTag`:通过反射和抽象工厂来创建View对象  
+递归处理子View节点，解析属性并设置View对象  
+
+## 24.3 添加到Window
+```java
+// ActivityThread.handleResumeActivity()
+final View decor = r.window.getDecorView();
+decor.setVisibility(View.INVISIBLE);
+ViewManager wm = a.getWindowManager();
+wm.addView(decor, l); // 通过 WindowManager 添加 DecorView 到屏幕
+```
+
+
 
 
 
 # 25 View、DecorView、Window之间的关系
+
+![Window体系](./../images/Window体系.png)
