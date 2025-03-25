@@ -1,7 +1,23 @@
-# 1 ActivityManagerService是什么？什么时候开始初始化？有什么作用？
-# 2 ActivityThread是什么？ApplicationThread是什么？他们的区别是什么？
+# 1 ActivityManagerService是什么？什么时候开始初始化？有什么作用？  
+
+ActivityManagerService是Android中非常重要的系统服务，负责管理应用程序的生命周期、任务栈、进程调度和组件交互，运行在system_server进程中，在system_server进程启动时初始化（即Android系统启动）
+
+# 2 ActivityThread是什么？ApplicationThread是什么？他们的区别是什么？  
+
+ActivityThread是Android应用的核主线程（UI线程）核心类，负责管理应用的主循环、处理主线程的消息队列、协调应用的生命周期；ApplicationThread是ActivityThread的内部类，实现了IApplicationThread.Stub接口，充当了ActivityThread与系统服务（如AMS）的桥梁，在ActivityThread中，作为Binder对象的Server端来处理Client端的请求  
+
 # 3 Instrumentation是什么？和ActivityThread是什么关系？  
-# 4 ActivityManagerService和Zygote进程通信是如何实现的？  
-# 5 ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervisor、ProcessRecord之间的关系  
-# 6 ActivityManager、ActivityManagerService、ActivityManagerNative、ActivityManagerProxy的关系  
-# 7 手撸简化版AMS  
+
+Instrumentation是Android框架中的一个关键类，主要用于监控应用和系统的交互，核心功能是作为应用组件生命周期管理的工具，允许开发者或者测试框架介入和控制组件的创建、初始化、生命周期回调等过程  
+
+Instrumentation是ActivityThread的执行者，ActivityThread负责管理组件生命周期的能力委托给Instrumentation执行，如Activity的启动：  
+1. AMS通过Binder跨进程通知ActivityThread启动目标Activity  
+2. ActivityThread搜到LAUNCH_ACTIVITY消息，调用handleLaunchActivity  
+3. Instrumentation执行具体操作：newActivity->callActivityOnCreate（触发Activity的onCreate）->onCreate（用于注入测试逻辑）
+
+# 4 ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervisor、ProcessRecord之间的关系  
+
+
+# 5 ActivityManager、ActivityManagerService、ActivityManagerNative、ActivityManagerProxy的关系  
+
+ActivityManager。getRunningServices通过ActivityManagerNative.getDefault得到此代理对象ActivityManagerProxy，ActivityManagerProxy代理类是ActivityManagerNative的内部类，AMN是个抽象类，真正发挥作用的是它的子类AMS
