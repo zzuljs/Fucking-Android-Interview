@@ -1,0 +1,9 @@
+1 Bitmap内存占用计算  
+2 getByteCount和getAllocationByteCount的区别  
+3 Bitmap的压缩方式  
+4 LruCache和DiskLruCache原理  
+5 如何设计一个图片加载库  
+6 如果有一张很大的图片，如何去加载  
+7 如果把drawable-xxhdpi下的图片移动到drawable-xhdpi下，图片内存如何变化  
+8 如果hdpi、xxhdpi下都放置了图片，加载的优先级是怎样的，如果是400x800和1080x1920，加载的优先级  
+9 屏幕分辨率适配方案  
