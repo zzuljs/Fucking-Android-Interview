@@ -174,11 +174,11 @@ DiskLruCache通过日志文件跟踪访问记录+LRU缓存淘汰策略，实现�
 DiskLruCache通过在磁盘中维护一个简单的Journal文件来记录各种缓存操作，记录类型有4种，分别是READ、REMOVE、CLEAN和DIRTY  
 
 写入缓存的时候会向journal文件写入一条以DIRTY开头的数据表示正在进行写操作，当写入完毕时，分两种情况：  
-1、写入成功，会向journal文件写入一条以CLEAN开头的文件，其中包括该文件的大小  
-2、写入失败，会向journal文件写入一条以REMOVE开头的文件,表示删除了该条缓存。也就是说每次写入缓存总是写入两条操作记录。  
+1、写入成功，会向journal文件写入一条以CLEAN开头的记录，其中包括该文件的大小  
+2、写入失败，会向journal文件写入一条以REMOVE开头的记录，表示删除了该条缓存。也就是说每次写入缓存总是写入两条操作记录。  
 
-读取的时候，会向journal文件写入一条以READ开头的文件,表示进行了读操作  
-删除的时候，会向journal文件写入一条以REMOVE开头的文件,表示删除了该条缓存  
+读取的时候，会向journal文件写入一条以READ开头的记录, 表示进行了读操作  
+删除的时候，会向journal文件写入一条以REMOVE开头的记录, 表示删除了该条缓存  
 
 通过journal就记录了所有对缓存的操作。并且按照从上到下的读取顺序记录了对所有缓存的操作频繁度和时间顺序。这样当退出程序再次进来调用缓存时，就可以读取这个文件来知道哪些缓存用的比较频繁了。然后把这些操作记录读取到集合中，操作的时候就可以直接从集合中去对应的数据了。
 
@@ -288,6 +288,22 @@ dimens.xml示例
 ```
 
 ## 9.2 今日头条适配方案
+
+也可以直接修改屏幕的像素密度，使不同密度的屏幕保持一致  
+```java
+// 代码示例（核心逻辑）
+public class ScreenAdapter {
+    // designWidthDp：设计稿的基准宽度（如360dp）
+    public static void adaptScreen(Activity activity, int designWidthDp) {
+        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        float targetDensity = dm.widthPixels * 1f / designWidthDp; // 计算目标density
+        dm.density = targetDensity;      // 修改系统density
+        dm.densityDpi = (int) (targetDensity * 160); // 修改dpi
+    }
+}
+```
+
+这样做的好处是一处修改、全局生效，一劳永逸，缺点是，会与现存的适配方案冲突，需要手动兼容
 
 
 
