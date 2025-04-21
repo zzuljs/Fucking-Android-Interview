@@ -7,9 +7,9 @@ system_server的AMS收到请求后，先检查App进程是否存在，如果不�
 Zygote进程fork出新的进程，即App进程，  
 App进程在被创建后，随即通过Binder IPC向system_server进程的AMS发出  attachApplication请求，该请求将ApplicationThread绑定到AMS，  
 AMS收到请求之后，创建Application对象，调用attachBaseContext，初始化ContentProvider以及执行Application.onCreate，  
-AMS在初始化完成之后，通过Binder IPC向App进程发送scheduleLaunchActivity请求，
+AMS在初始化完成之后，通过Binder IPC向App进程发送scheduleLaunchActivity请求，  
 App进程的Binder线程（ApplicationThread）收到之后，通过Handler向App主线程发送LAUNCH_ACTIVITY消息，  
-主线程接受到消息后，通过发射机制创建目标Activity，并回调Activity.onCreate、onStart、onResume等生命周期方法，  
+主线程接受到消息后，通过反射机制创建目标Activity，并回调Activity.onCreate、onStart、onResume等生命周期方法，  
 WindowManager添加窗口，SurfaceFlinger完成UI渲染
 
 ![Activity启动流程](./../images/Activity启动流程图.png)
@@ -101,7 +101,7 @@ A跳转B：A.onPause->B.onCreate->B.onStart->B.onResume->A.onStop
 B在按下back键：B.onPause->A.onRestart->A.onStart->A.onResume->B.onStop->B.onDestroy  
 
 如果B的launchMode是singleInstance、singleTask且B有可复用实例，生命周期回调如下：  
-A.onPause->B.onNewIntent->B.onRestart->B.onStart->B.onResume->A.onStop->(A被移除的话)A.onDestory  
+A.onPause->B.onNewIntent->B.onRestart->B.onStart->B.onResume->A.onStop->(A被移除的话)A.onDestroy  
 
 当B的launchMode是singleTop且已经在栈顶，此时:  
 B.onPause->B.onNewIntent->B.onResume  
@@ -116,11 +116,11 @@ B.onPause->B.onNewIntent->B.onResume
 仅当设置上述属性，横竖屏切换才不会触发Activity重建，仅触发onConfigurationChanged方法回调  
 
 启动：onCreate->onStart->onResume  
-切换横竖屏：onPause->onSaveInstanceState->onStop->onDestory->onCreate->onStart->onSaveInstanceState->onResume  
+切换横竖屏：onPause->onSaveInstanceState->onStop->onDestroy->onCreate->onStart->onSaveInstanceState->onResume  
 2. HOME键  
 onPause->onStop->onRestart->onStart->onResume  
 3. BACK键
-onPause->onStop->onDestory
+onPause->onStop->onDestroy
 4. 锁屏  
 锁屏只会调用onPause，不会调用onStop，开屏后onResume  
 5. 弹出Dialog  
