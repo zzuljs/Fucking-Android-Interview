@@ -106,7 +106,11 @@ Object obj = integers.get(0); // 只能读取为Object
 
 # 8 静态属性、方法能否被重写  
 
-不能，子类继承父类后，静态属性和方法都被隐藏，无法重写
+不能，子类继承父类后，静态属性和方法都被隐藏，无法重写  
+
+静态成员属于类，而非实例，子类可以继承父类的静态成员，即通过子类类名+静态成员的方式访问，但是无法重写，子类定义同名静态成员会隐藏父类静态成员，不会形成继承关系  
+
+本质上，静态方法在编译期通过类名直接绑定，而非实例方法在运行期动态绑定，这是Java语言机制和JVM共同决定的  
 
 # 9 进程和线程的区别  
 
@@ -119,28 +123,162 @@ Object obj = integers.get(0); // 只能读取为Object
 
 # 10 final/finally/finalize的区别  
 
+final用于声明属性、方法和类，分别表示属性不可变，方法不可覆盖、类不可继承  
+
+finally是异常处理语句结构的一部分，表示总是执行  
+
+finalize是Object类的一个方法，在垃圾收集器执行的时候会回调被回收对象的finalize方法，可以覆盖此方法提供垃圾收集时其他资源的回收，例如关闭文件  
+
+finalize调用时机不确定，JVM甚至无法保证它一定会被调用，finalize的执行会延长对象的生命周期到下一次GC，导致额外的性能开销，所以Java 9之后该接口被弃用  
 
 
 # 11 什么是序列化、为什么要序列化  
 
+在Java、Android中，序列化（Serizlization）是将对象转换成一种可存储或者可传输的格式（字节流、JSON等），而反序列化则是将这种格式恢复为对象的过程，序列化的核心目的是将对象能够脱离程序生命周期而独立存在，并在不同的场景中复用   
 
-# 12 Serizlizable、Parcelable的区别  
+```java
+// 1.Intent跨进程传输数据
+Intent intent = new Intent(this, SecondActivity.class);
+intent.putExtra("user", user); // user 必须实现 Parcelable 或 Serializable
 
+
+// 2.序列化对象到文件
+try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("user.dat"))) {
+    oos.writeObject(user); // user 必须实现 Serializable
+}
+```
+
+如果不进行序列化，对象无法在某些关键场景中应用，导致数据丢失、程序崩溃等  
+
+```java
+// 自定义类未实现序列化接口
+public class User {
+    private String name;
+    private int age;
+    // 构造方法、getter/setter
+}
+
+// 尝试传递对象到另一个 Activity
+User user = new User("Alice", 30);
+Intent intent = new Intent(this, SecondActivity.class);
+
+
+// 此处会崩溃！抛异常 java.lang.RuntimeException: Parcelable encountered IOException writing serializable object (name = com.example.User)
+intent.putExtra("user", user); 
+startActivity(intent);
+```
+
+# 12 Serializable、Parcelable的区别  
+
+Serializable是Java的原生接口，简单易用，性能较低（依赖反射），适合简单的场景  
+```java
+public class User implements Serializable {
+    private static final long serialVersionUID = 1L; // 版本控制标识
+    private String name;
+    private int age;
+    // getters/setters
+}
+```
+
+这里的serialVersionUID 用来版本控制，在反序列化的时候，JVM会检查反序列化的ID和当前类的ID是否一致，不一致抛出InvalidClassException，如果这个属性缺省，JVM会根据类结构自动生成一个ID，如果类发生修改，这个ID也会改变  
+
+Parcelable接口是Android接口，性能较高，使用起来比较麻烦，需要手动实现序列化逻辑，适合频繁传输的场景  
+```java
+public class User implements Parcelable {
+    private String name;
+    private int age;
+
+    // 构造方法
+    protected User(Parcel in) {
+        name = in.readString();
+        age = in.readInt();
+    }
+
+    // 反序列化
+    public static final Creator<User> CREATOR = new Creator<User>() {
+        @Override
+        public User createFromParcel(Parcel in) {
+            return new User(in);
+        }
+
+        @Override
+        public User[] newArray(int size) {
+            return new User[size];
+        }
+    };
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    // 序列化
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(name);
+        dest.writeInt(age);
+    }
+}
+```
 
 # 13 静态内部类的设计意图  
+
+- 独立性：不依赖外部类实例化  
+- 隐式隔离：与外部类的关系是组合而非绑定，静态内部类无法直接访问外部类非静态成员  
+- 内存安全：静态内部类不持有外部类的强引用，避免内存泄漏
 
 
 # 14 成员内部类、静态内部类、方法内部类（局部内部类）和匿名内部类的区别和应用场景    
 
+| 特性               | 成员内部类         | 静态内部类                 | 方法内部类               | 匿名内部类               |
+|--------------------|--------------------|---------------------------|-------------------------|-------------------------|
+| 定义位置           | 外部类内部         | 外部类内部（static）      | 方法/代码块内部         | 通过 new 直接定义        |
+| 访问外部实例成员   | ✔️（隐式持有引用） | ❌（仅静态成员）          | ❌（需 final 局部变量） | ❌（需 final 局部变量） |
+| 生命周期           | 依赖外部类实例     | 独立                      | 依赖方法执行            | 临时对象（通常一次性）   |
+| 内存泄漏风险       | 高（隐式引用）     | 无                        | 低                      | 低                      |
+| 典型场景           | 事件监听、紧密逻辑绑定 | 工具类、数据结构节点    | 方法内复杂逻辑封装      | 单次回调、线程任务       |
 
 # 15 闭包和局部内部类的区别  
 
+Java的闭包主要变现为Lambda表达式，两者都只能够捕获外部的final或等效final的外部变量（Java 8的优化），本质上这是一种值拷贝  
+
+Lambda生命周期长于所在方法体，但是局部内部类生命周期和方法体相同  
+
+Lambda语法更加简洁，适用于函数式编程、回调等，应用场景比较广泛  
+
+局部内部类适合方法内临时定义复用逻辑，封装需要多次实例化的复杂逻辑，其实不太常用  
 
 # 16 String转换成Integer的方式和原理  
 
+直接调用`Integer.parseInt("123",10)`即可，该方法内部是基于字符串的循环数位转换
 
 # 17 对象拷贝中深拷贝和浅拷贝的区别  
 
+浅拷贝：创建一个对象，复制原对象所有字段，对于基本类型直接复制值，对于引用类型，复制引用地址（新旧对象指向同一块内存）  
+
+```java
+// 浅拷贝
+CopyClass a = new CopyClass();
+CopyClass b = a.clone();
+```
+
+深拷贝：创建一个对象，递归复制原始对象及其所有引用字段指向的对象，基本类型直接复制值，引用类型创建新对象并复制内容，深拷贝通常需要实现clone方法，或者Serializable接口    
 
 # 18 Enumeration和Iterator的区别  
 
+
+Enumeration是JDK1.0引入的，线程安全，不支持删除元素，主要用于老项目维护，配合JDK1.0的Vector、Hashtable等旧集合类使用    
+```java
+public interface Enumeration<E> {
+    boolean hasMoreElements(); // 检查是否有更多元素
+    E nextElement();          // 返回下一个元素
+}
+```
+Iterator是JDK1.2引入，是现代集合类的标准遍历方式，非线程安全，支持删除元素
+```java
+public interface Iterator<E> {
+    boolean hasNext();  // 检查是否有更多元素
+    E next();           // 返回下一个元素
+    void remove();      // 删除当前元素（可选操作）
+}
+```
