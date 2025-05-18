@@ -87,14 +87,338 @@ UTF-8：UTF-16定长2个字节有点浪费空间，所以UTF-8采用变长字节
 
 
 # 5 Java的异常体系  
+
+
 # 6 Java虚拟机中的静态分派和动态分配  
+
+
+
 # 7 修改对象A的equals方法的签名，那么使用HashMap存放这个对象实例中，会调用哪个equals方法  
+
+
 # 8 Java中多态的底层实现机制是什么  
+
+
 # 9 如何将一个Java对象序列化到文件中  
+
+
+
+
+
 # 10 说说你对Java反射的理解  
+
+在运行状态中，对于任意一个类，都能够知道这个类的所有属性和方法，对于任意一个对象，都能够调用它的一个方法和属性，这种动态获取信息以及调用对象的功能称之为Java语言的反射机制  
+
+1. 反射的工作原理：  
+
+我们知道，每个Java文件最终都会被编译成一个.class文件，这些Class对象承载了对这个类的所有信息，包括父类、接口、构造函数、方法、属性等，这些class文件在运行时会被ClassLoader加载到虚拟机中，当一个类被加载以后，Java虚拟机就会在内存中自动产生一个Class对象，而一般情况下用new创建对象，实际上本质都是一样的，只是底层原理对我们开发者透明，有了class对象的引用，相当于有了Method、Field、Constructor的一切信息    
+
+
+常见反射方法：
+```java
+getName()//获得类的完整名字。  
+newInstance()//通过类的不带参数的构造方法创建这个类的一个对象。
+
+getFields()//获得类的public类型的属性。  
+getDeclaredFields()//获得类的所有属性。
+
+getMethods()//获得类的public类型的方法。  
+getDeclaredMethods()//获得类的所有方法。  
+getMethod(String name, Class[] parameterTypes)//获得类的特定方法。
+
+getModifiers()
+Modifier.toString()//获得属修饰符，例如private，public，static等  
+
+getReturnType()//获得方法的返回类型  
+getParameterTypes()//获得方法的参数类型
+
+getConstructors()//获得类的public类型的构造方法。  
+getConstructor(Class[] parameterTypes)//获得类的特定构造方法。
+
+getSuperclass()//获取某类的父类  
+getInterfaces()//获取某类实现的接口
+```
+
+2. Android中常用反射场景  
+
+- 需要访问隐藏属性、方法，改变程序原有逻辑  
+- 自定义注解，反射是第三方框架、模块化、组件化开发常用技术  
+- 热修复技术  
+
 # 11 说说你对Java注解的理解  
+
+## 11.1 注解基本概念
+
+Java注解（Annotation）是一种元数据机制，用于提供代码的附加信息，这些信息一般由编译器、开发工具、运行时环境处理  
+
+注解的本质是继承`java.lang.annotation.Annotation`接口，编译后以`@interface`形式存在  
+
+注解信息存储在字节码文件的属性表中（如RuntimeVisibleAnnotations），由JVM解析  
+
+## 11.2 元注解（Meta-Annotation）  
+
+元注解用于修饰注解本身的注解  
+
+
+| 注解        | 含义                                                                 |
+|-------------|----------------------------------------------------------------------|
+| `@Target`   | 指定注解作用的位置（如类、方法、字段等）                             |
+| `@Retention`| 指定注解保留到什么时候                                               |
+| `@Documented`| 是否生成 Javadoc 时包含这个注解                                     |
+| `@Inherited` | 是否子类继承父类的注解                                              |
+
+<br/>
+
+`@Retention` 保留策略有三种  
+- `SOURCE` 编译时期丢弃，仅在代码中可见，如`@Override`  
+- `CLASS` 编译进`.class`文件中，运行时不可见  
+- `RUNTIME` 编译进`.class` 且运行时通过反射可读，常见于各种框架  
+
+元注解通常用于自定义注解   
+
+自定义注解基本用法：  
+```java
+@Target(ElementType.METHOD)        // 注解用在哪（类/方法/字段/参数）
+@Retention(RetentionPolicy.RUNTIME) // 注解保留到何时（源代码/编译期/运行时）
+public @interface MyAnnotation {
+    String value();    // 一个参数
+    int count() default 1; // 有默认值的参数
+}
+
+
+// 使用
+@MyAnnotation(value = "hello", count = 3)
+public void test() { }
+
+```
+
+## 11.3 注解处理机制  
+
+1. APT（Annotation Processor Tool）  
+编译阶段，借助Annotation Processor生成代码，举个例子  
+```java
+// BuilderProperty.java
+@Retention(RetentionPolicy.SOURCE) // 仅源码阶段保留
+@Target(ElementType.FIELD)          // 用于字段
+public @interface BuilderProperty {}
+
+
+// BuilderProperty.java
+@AutoService(Processor.class) // Google AutoService 自动生成配置
+public class BuilderProcessor extends AbstractProcessor {
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment env) {
+        // 遍历所有被 @BuilderProperty 标注的字段
+        for (Element element : env.getElementsAnnotatedWith(BuilderProperty.class)) {
+            // 生成 Builder 类的代码（此处简化为示例）
+            String className = element.getEnclosingElement().getSimpleName() + "Builder";
+            String code = "public class " + className + " { /* ... */ }";
+            
+            // 将生成的代码写入文件
+            try (Writer writer = processingEnv.getFiler().createSourceFile(className).openWriter()) {
+                writer.write(code);
+            } catch (IOException e) { /* 处理异常 */ }
+        }
+        return true;
+    }
+}
+
+
+// 使用注解
+public class User {
+    @BuilderProperty
+    private String name;
+}
+
+// 编译后生成代码
+public class UserBuilder {
+    private String name;
+    
+    public UserBuilder name(String name) {
+        this.name = name;
+        return this;
+    }
+    
+    public User build() {
+        return new User(name);
+    }
+}
+
+```
+
+2. 结合反射使用自定义注解  
+
+举例：使用`@Permission`注解来判断运行时权限  
+```java
+// Permission.java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Permission {
+    String value() default "user"; // 允许的角色
+}
+
+// 使用注解
+public class AdminService {
+    @Permission("admin") // 仅 admin 角色可调用
+    public void deleteUser() { System.out.println("User deleted"); }
+}
+
+// 权限校验代理
+public class SecurityProxy {
+    public static void execute(Object target, String role) throws Exception {
+        Class<?> clazz = target.getClass();
+        for (Method method : clazz.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(Permission.class)) {
+                Permission permission = method.getAnnotation(Permission.class);
+                if (!permission.value().equals(role)) {
+                    throw new SecurityException("Permission denied");
+                }
+                method.invoke(target); // 执行方法
+            }
+        }
+    }
+}
+
+// 测试代码
+public class Main {
+    public static void main(String[] args) throws Exception {
+        AdminService adminService = new AdminService();
+        SecurityProxy.execute(adminService, "user"); // 抛出异常：权限不足
+    }
+}
+```  
+
+这种方案的好处是灵活性高，但是需要考虑反射有一定的性能消耗
+
 # 12 说说你对依赖注入的理解  
+
+依赖注入（Dependency Injection,DI）是一种设计模式，通过将对象的依赖关系从类的内部转移到外部来解耦组件，核心思想是“类的依赖不由自己创建，而是由外部提供”，通过依赖注入，开发者更加专注业务逻辑本身，而非对象的创建和管理，这是大型项目的基石，也是诸如Spring框架的核心  
+
+主要优势：  
+- 解耦组件：类不直接依赖对象  
+- 提高可测试性：减少代码侵入，方便做单元测试  
+- 增强扩展性：依赖实现可灵活替换  
+- 符合单一职责原则：类只需要关注业务逻辑本身  
+
+
+举例：  
+
+用户登录系统发送短信：  
+1. 构造函数手动注入  
+```java
+// 邮件服务接口
+interface EmailService {
+    void sendEmail(String message);
+}
+
+// 具体实现类
+class SmtpEmailService implements EmailService {
+    @Override
+    public void sendEmail(String message) {
+        System.out.println("通过SMTP发送邮件：" + message);
+    }
+}
+
+// 用户服务类（通过构造函数注入依赖）
+class UserService {
+    private final EmailService emailService;
+
+    // 构造函数注入
+    public UserService(EmailService emailService) {
+        this.emailService = emailService;
+    }
+
+    public void registerUser(String username) {
+        // 业务逻辑...
+        emailService.sendEmail("欢迎注册，" + username + "!");
+    }
+}
+
+// 使用示例
+public class Main {
+    public static void main(String[] args) {
+        EmailService emailService = new SmtpEmailService();
+        UserService userService = new UserService(emailService); // 注入依赖
+        userService.registerUser("张三");
+    }
+}
+```  
+
+作为开发者，在Main类中直接使用UserService和SmtpEmailService即可，无需关心内部实现，但简单的手动注入，还不是真正意义上的自动注入、依赖注入，如果这样的调用有一万处，有朝一日需要把SmtpEmailService改成其他别的服务，就很难改，这个时候需要引入DI框架，如Spring  
+
+```java
+// Spring框架示例
+@Component
+public class SmtpEmailService implements EmailService { /*...*/ }
+
+@Service
+public class UserService {
+    private final EmailService emailService;
+
+    @Autowired // 自动注入
+    public UserService(EmailService emailService) {
+        this.emailService = emailService;
+    }
+}
+
+
+// Application.java
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        // 启动Spring容器
+        ApplicationContext context = SpringApplication.run(Application.class, args);
+        
+        // 获取用户服务实例
+        // 很显然，UserService和EmailService实现了解耦
+        UserService userService = context.getBean(UserService.class);
+        
+        // 使用服务
+        userService.registerUser("李四", "lisi@example.com");
+    }
+}
+```  
+
+假设要把一部分EmailService改成TencentEmailService，按需使用@Primary即可,所有依赖EmailService的类（如UserService）自动切换为新实现，​无需修改任何调用方代码    
+```java
+@Component
+@Primary // 标记为首选实现
+public class TencentEmailService implements EmailService {
+    @Override
+    public void sendEmail(String msg) {
+        System.out.println("腾讯云发送: " + msg);
+    }
+}
+```
+
+或者使用@Qualifier按需使用  
+```java
+// 定义不同实现
+@Component("smtpService")
+public class SmtpEmailService implements EmailService { /*...*/ }
+
+@Component("tencentService")
+public class TencentEmailService implements EmailService { /*...*/ }
+
+// 在需要特定实现的调用方指定名称
+@Service
+public class UserService {
+    @Autowired
+    @Qualifier("tencentService") // 明确指定Bean名称
+    private EmailService emailService;
+}
+```  
+
 # 13 说一下泛型原理，并举例说明  
+
+1. 泛型擦除  
+
+Java代码在编译时，会把所有泛型删除掉，转换成不含泛型的代码，这叫泛型擦除，因此，Java泛型仅作用于编译时，在编译后的代码是没有泛型的影子的，Java的泛型也称之为JVM泛型或者伪泛型（不具有运行时泛型特征）。泛型擦除是为了兼容旧版本JVM（泛型时Java 5引入），保证代码兼容，同时避免JVM因为新特性新增字节码指令，简化实现  
+
+2. Signature属性  
+
+Signature属性是.class文件属性表集合里面的一个属性，记录了泛型的相关信息，编译时会将代码里的泛型擦除，然后记录到Signature属性表里，反射API直接从这里拿到信息  
+
 # 14 String为什么要设计成不可变的  
 
 1. 安全性
@@ -113,3 +437,5 @@ String作为哈希表键值对，hashCode仅需计算一次即可
 
 
 # 15 类加载流程的双亲委托机制  
+
+
