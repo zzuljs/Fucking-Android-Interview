@@ -89,6 +89,31 @@ UTF-8：UTF-16定长2个字节有点浪费空间，所以UTF-8采用变长字节
 
 # 5 Java的异常体系  
 
+<img src="./../images/Java异常体系.png"  style="display:block;margin:0 auto" />
+
+Java中所有的异常和错误的根类是java.lang.Throwable,只有它的子类才能被抛出（throw）或捕获（catch）  
+Throwable两个直接子类：  
+- Error表示严重问题，通常由JVM抛出，程序无法处理  
+- Exception表示可预见异常，通常需要开发者处理  
+
+1. Error  
+
+系统级致命错误，如OutOfMemoryError、StackOverflowError  
+Error属于非检查型异常，开发者无需显式处理  
+
+2. Exception  
+
+Exception是可预见异常，分为两类：
+
+- 检查型异常：继承自非RuntimeException的子类，开发者必须处理，否则不通过，如IOException  
+- 非检查型异常：继承自RuntimeException的子类，不强制处理，如NullPointerException  
+
+还有一种是自定义异常，开发者可以继承Exception（规范要求）  
+
+关于异常的继承：  
+- 子类重写父类方法时，仅允许抛出更少（最少可以不抛）、更具体（父类异常的子类）的受检查的异常  
+- 子类不能新增异常或无关的受检查异常  
+- 子类抛出不受检查的异常不受限制，如NullPointerException  
 
 # 6 Java虚拟机中的静态分派和动态分配  
 （参见JVM专题）
@@ -521,9 +546,6 @@ JVM用String存储类名、方法名，不可变性保证类加载时不会被�
 3. 性能优化  
 
 字符串常量池：JVM通过常量池复用相同字符串，避免内存开销  
-String作为哈希表键值对，hashCode仅需计算一次即可  
-
-
-# 15 类加载流程的双亲委托机制  
+String作为哈希表键值对，hashCode仅需计算一次即可
 
 
