@@ -86,23 +86,110 @@ UTF-8：UTF-16定长2个字节有点浪费空间，所以UTF-8采用变长字节
 
 
 
+
 # 5 Java的异常体系  
 
 
 # 6 Java虚拟机中的静态分派和动态分配  
-
-
+（参见JVM专题）
 
 # 7 修改对象A的equals方法的签名，那么使用HashMap存放这个对象实例中，会调用哪个equals方法  
 
+方法签名 =  方法名 + 入参类型，修改方法签名，意味着入参改变，此时equals方法被重载  
+但HashMap读取对象元素时，使用的是Object.equals方法，此时对象A修改后的equals不会被调用  
 
 # 8 Java中多态的底层实现机制是什么  
 
+Java中的多态主要依赖于动态绑定（Dynamic Binding）和虚方法表（vtable）  
+
+## 8.1 多态核心概念  
+
+多态允许父类引用调用子类重写方法：  
+
+- 继承关系：子类继承父类  
+- 方法重写：子类覆盖父类方法  
+- 向上转型：父类引用指向子类对象  
+
+## 8.2 底层原理  
+
+1. 虚方法表（vtable）  
+
+每个类在内存中会维护一个虚方法表，存储所有可以被重写的方法的指针，运行时根据对象的实际类型，通过虚方法表动态解析方法的具体实现，子类继承父类虚方法表，如果发生方法覆盖（Overload），那么也将覆盖对应方法地址    
+
+2. 对象内存布局  
+
+对象在内存中的布局有几个关键变量：  
+- 对象头（Header）：包含类元信息(Class指针)  
+- 实例数据（Instance Data）：存储对象的字段（包括父类字段和子类字段）  
+- 虚方法表指针（vptr）：指向该对象所属类的虚方法表（通常位于对象头附近）  
+
+3. 动态绑定流程  
+
+当通过父类引用调用方法时：  
+- 获取对象的实际类型：通过vptr找到虚方法表  
+- 查找方法地址：在虚方法表中定位目标方法的入口地址  
+- 执行方法：调用对应方法的具体实现  
 
 # 9 如何将一个Java对象序列化到文件中  
 
+1. 实现Serializable接口  
+```java
+import java.io.Serializable;
+
+public class Person implements Serializable {
+    private static final long serialVersionUID = 1L; // 推荐显式声明
+    private String name;
+    private int age;
+    private transient String password; // transient字段不会被序列化
+
+    // 构造方法、Getter/Setter等
+}
+```
+
+2. 使用ObjectOutputStream将对象写入/读取文件  
+```java
+import java.io.FileOutputStream;
+import java.io.ObjectOutputStream;
+import java.io.IOException;
+
+// 序列化到文件
+public class SerializationExample {
+    public static void main(String[] args) {
+        Person person = new Person("Alice", 30, "secret");
+        
+        try (FileOutputStream fileOut = new FileOutputStream("person.ser");
+             ObjectOutputStream out = new ObjectOutputStream(fileOut)) {
+            
+            out.writeObject(person); // 序列化对象
+            System.out.println("对象已序列化到 person.ser");
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
 
 
+// 反序列化到文件
+public class DeserializationExample {
+    public static void main(String[] args) {
+        Person deserializedPerson = null;
+        
+        try (FileInputStream fileIn = new FileInputStream("person.ser");
+             ObjectInputStream in = new ObjectInputStream(fileIn)) {
+            
+            deserializedPerson = (Person) in.readObject(); // 反序列化
+            System.out.println("反序列化结果: " + deserializedPerson);
+            
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```  
+
+序列化是Java中实现对象持久化和跨平台传输的基础机制，非必要场景下可以考虑JSON  
+对于Android开发，一般使用Parcelable接口，常用于组件跳转传值、跨进程通信  
 
 
 # 10 说说你对Java反射的理解  
@@ -195,6 +282,7 @@ public void test() { }
 ## 11.3 注解处理机制  
 
 1. APT（Annotation Processor Tool）  
+
 编译阶段，借助Annotation Processor生成代码，举个例子  
 ```java
 // BuilderProperty.java
@@ -288,7 +376,7 @@ public class Main {
 }
 ```  
 
-这种方案的好处是灵活性高，但是需要考虑反射有一定的性能消耗
+这种方案的好处是灵活性高，但是需要考虑反射有一定的性能消耗  
 
 # 12 说说你对依赖注入的理解  
 
