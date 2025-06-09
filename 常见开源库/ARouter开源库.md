@@ -372,31 +372,72 @@ ARouter 巧妙地将编译时生成的路由表作为核心，解决了跨模块
 
 ## 6 ARouter 的路由表是怎么构建的？`@Route`注解是如何工作的？
 
-## 7 APT 编译期生成了哪些类？如：
+每一个被`@Route`注解标记的类，会被编译器收集到ARouter注解处理器RouterProcessor中，  
 
-`ARouter$$Group$$xxx`
+包含注解携带的参数，path、group等  
 
-`ARouter$$Root$$xxx`
+RouterProcessor会根据收集到的信息生成路由表：  
 
-`ARouter$$Providers$$xxx`
+在每个模块的debug路径下生成两类文件——  
+`ARouter$$Group$$[Group_Name].java`：继承了IRouteGroup接口，存储某个特定路由`group`下所有`path`与其对应目标组件`RouteMeta`的映射关系  
+`ARouter$$Root$$[Module_Name].java`: 继承了IRouteRoot接口，记录当前模块包含哪些路由组  
 
-## 8 ARouter 跳转是依赖反射还是代码生成？性能如何？
+这些生成的文件都会被编译成.class文件，打包到APK文件中  
 
-## 9 ARouter 的初始化过程是怎样的？推荐在 Application 的哪个时机初始化？
+在运行时，ARouter初始化之后，会扫描APK，查找所有实现了IRouteRoot接口且符合`ARouter$$Root$$xxx`的类  
 
-## 10 如果没有初始化 ARouter 会出现什么问题？如何快速定位？
+通过反射，实例化这些`ARouter$$Root$$xxx`类，这个类记录了当前模块包含的所有组（group），而组内又记录了映射表RouteMeta，这个RouteMate是映射表信息的关键，通过再次反射把path和RouteMate加载到内存中的map结构    
+
+## 7 APT 编译期生成了哪些类？  
+
+1. `ARouter$$Group$$xxx`  
+
+每个不同的`group`（如果没有设置，通常会根据path解析）都会生成这样的文件，实现了`IRouteGroup`接口，核心是`loadInto(Map<String,RouteMeta> alts)` 方法，包含group下所有@Route标记的path和对应的RouteMeta  
+
+2. `ARouter$$Root$$xxx`  
+
+每个配置了 ARouter 注解处理器（并指定了 AROUTER_MODULE_NAME 参数）的模块，都会生成一个这样的文件；实现了IRouteRoot 接口。它们的核心是一个`loadInto(Map<String, Class<? extends IRouteGroup>> routes) `方法。这个方法内部包含了将当前模块包含的所有 group 的名称  
+
+这是一个模块级别的路由入口。在 ARouter 初始化时，它会扫描并加载所有这些 ARouter$$Root$$xxx.java 文件，从而快速构建一个总体的 group 到 IRouteGroup 类文件的映射。这个映射是应用程序启动时最先加载的路由元数据，它相对较小，保证了快速启动。
+
+## 8 ARouter 跳转是依赖反射还是代码生成？性能如何？  
+
+ARouter底层跳转还是依赖Intent+startActivity，注解、反射和代码生成都是为了构建路由表，组织和管理页面关系  
+
+代码生成发生在编译时期，因此不会增加运行时开销  
+
+而ARouter通过反射加载路由表使用了懒加载，只加载Root相关信息，根据Root包含的group信息查找对应类，然后才使用反射，这点开销是可以接受的  
+
+参数注入@Autowired用到了反射，ARouter这里做了优化，首次注入通过反射获取字段信息，然后缓存这些信息，后续使用无需反射、查找更快  
+
+## 9 ARouter 的初始化过程是怎样的？推荐在 Application 的哪个时机初始化？  
+
+ARouter.init在Application.onCreate方法中初始化, 主要完成如下任务：  
+
+1. 初始化`LogisticsCenter`:LogisticsCenter是ARouter内部的物流中心，负责管理所有路由信息的加载、缓存和查找，LogisticsCenter此时通过init设置全局Context，初始化线程池  
+
+2. 加载路由表信息：ARouter会尝试加载编译时生成的路由表文件
+
+## 10 如果没有初始化 ARouter 会出现什么问题？  
+
+没有初始化会抛异常 `InitException: ARouter::Init::Invoke init(context) first` 
+
+如果这个异常被catch，那么跳转时会回抛出`NoRouteFoundException` ，拦截器也会失效
 
 # 🔐 三、进阶与源码类问题
 
 ## 11 ARouter 的源码入口是哪个类？你分析过它的哪些关键模块？
 
-## 12 ARouter 初始化时做了哪些事？LogisticsCenter 起什么作用？
-
 ## 13 @Autowired 注解的实现机制是什么？如何支持依赖注入？
 
 ## 14 ARouter 的拦截器机制是如何设计的？如何实现一个登录拦截器？
 
-## 15 多线程下 ARouter 是如何保证线程安全的？
+## 15 多线程下 ARouter 是如何保证线程安全的？  
+
+- 单例模式的双重检查锁定 确保 ARouter 实例的唯一性和正确初始化  
+- 对核心共享数据结构（如路由映射表）的访问，特别是在写入和首次加载时，采用 synchronized 块或其他并发集合（如 ConcurrentHashMap 或 Collections.synchronizedMap 包装）来保护   
+- 懒加载机制, 减少了需要同步的范围，只有当某个 group 或服务首次被请求时，才会进行同步加载，一旦加载完成，后续的读取操作通常是无锁的  
+- 设计不可变或只读的数据对象（如 RouteMeta），避免了在读取时进行同步的必要。
 
 # 🛠️ 四、工程实践与优化类问题  
 
