@@ -174,22 +174,25 @@ DiskLruCache通过日志文件跟踪访问记录+LRU缓存淘汰策略，实现�
 DiskLruCache通过在磁盘中维护一个简单的Journal文件来记录各种缓存操作，记录类型有4种，分别是READ、REMOVE、CLEAN和DIRTY  
 
 写入缓存的时候会向journal文件写入一条以DIRTY开头的数据表示正在进行写操作，当写入完毕时，分两种情况：  
-1、写入成功，会向journal文件写入一条以CLEAN开头的记录，其中包括该文件的大小  
-2、写入失败，会向journal文件写入一条以REMOVE开头的记录，表示删除了该条缓存。也就是说每次写入缓存总是写入两条操作记录。  
+
+- 写入成功，会向journal文件写入一条以CLEAN开头的记录，其中包括该文件的大小  
+- 写入失败，会向journal文件写入一条以REMOVE开头的记录，表示删除了该条缓存。也就是说每次写入缓存总是写入两条操作记录。  
 
 读取的时候，会向journal文件写入一条以READ开头的记录, 表示进行了读操作  
+
 删除的时候，会向journal文件写入一条以REMOVE开头的记录, 表示删除了该条缓存  
 
-通过journal就记录了所有对缓存的操作。并且按照从上到下的读取顺序记录了对所有缓存的操作频繁度和时间顺序。这样当退出程序再次进来调用缓存时，就可以读取这个文件来知道哪些缓存用的比较频繁了。然后把这些操作记录读取到集合中，操作的时候就可以直接从集合中去对应的数据了。
+通过journal就记录了所有对缓存的操作。并且按照从上到下的读取顺序记录了对所有缓存的操作频繁度和时间顺序, 这样当退出程序再次进来调用缓存时，就可以读取这个文件来知道哪些缓存用的比较频繁了, 然后把这些操作记录读取到集合中，操作的时候就可以直接从集合中去对应的数据了。
 
 2. 内部核心类  
 
 DiskLruCache内部利用LinkedHashMap实现LRU算法，除此之外还有3个核心内部类：  
-- Editor：缓存写入实物控制器  
-- Snapshot：缓存读取一致性视图  
-- Entry：缓存条目的元数据载体  
+- `Editor`：缓存写入实物控制器  
+- `Snapshot`：缓存读取一致性视图  
+- `Entry`：缓存条目的元数据载体  
 
 Editor管理缓存条目的​写入、修改或删除，确保操作的 ​原子性​（要么完全成功，要么完全失败）  
+
 ```java
 DiskLruCache.Editor editor = diskLruCache.edit("image_key");
 try {
@@ -202,6 +205,7 @@ try {
 ```
 
 Snapshot提供缓存条目的只读访问，确保读取过程中数据不被修改  
+
 ```java
 DiskLruCache.Snapshot snapshot = diskLruCache.get("image_key");
 if (snapshot != null) {
@@ -212,13 +216,13 @@ if (snapshot != null) {
 }
 ```
 
-Entry是一个元数据，关键属性包含：  
-- key：条目的唯一标识（如 URL 的哈希值）  
-- lengths：每个文件的大小数组（长度等于 valueCount）  
-- lastAccessTime：最后一次访问时间戳，用于 LRU 排序  
-- inEditor：标记条目是否正在被编辑（防止并发写入冲突）  
+`Entry`是一个元数据，关键属性包含：  
+- `key`：条目的唯一标识（如 URL 的哈希值）  
+- `lengths`：每个文件的大小数组（长度等于 valueCount）  
+- `lastAccessTime`：最后一次访问时间戳，用于 LRU 排序  
+- `inEditor`：标记条目是否正在被编辑（防止并发写入冲突）  
 
-DiskLruCache的实现结合了数据库系统、文件系统和LRU算法，是磁盘缓存经典实现  
+`DiskLruCache`的实现结合了数据库系统、文件系统和LRU算法，是磁盘缓存经典实现  
 
 # 5 如何设计一个图片加载库  
 
@@ -304,6 +308,3 @@ public class ScreenAdapter {
 ```
 
 这样做的好处是一处修改、全局生效，一劳永逸，缺点是，会与现存的适配方案冲突，需要手动兼容
-
-
-

@@ -43,13 +43,20 @@ Android重新设计一套Binder机制主要基于以下考量：
 
 # 5 什么是Binder  
 
-从进程间通信的角度看，Binder 是一种进程间通信的机制；  
-从 Server 进程的角度看，Binder 指的是 Server 中的 Binder 实体对象(Binder类 IBinder)；  
+从进程间通信的角度看，Binder 是一种进程间通信的机制  
+
+从 Server 进程的角度看，Binder 指的是 Server 中的 Binder 实体对象(Binder类 IBinder)  
+
 从 Client 进程的角度看，Binder 指的是对 Binder 代理对象，是 Binder 实体对象的一个远程代理  
-从传输过程的角度看，Binder 是一个可以跨进程传输的对象；Binder 驱动会自动完成代理对象和本地对象之间的转换。  
-从Android Framework角度来说，Binder是ServiceManager连接各种Manager和相应ManagerService的桥梁  
-Binder跨进程通信机制：基于C/S架构，由Client、Server、ServerManager和Binder驱动组成。  
-进程空间分为用户空间和内核空间。用户空间不可以进行数据交互；内核空间可以进行数据交互，所有进程共用一个内核空间  
+
+从传输过程的角度看，Binder 是一个可以跨进程传输的对象；Binder 驱动会自动完成代理对象和本地对象之间的转换  
+
+从Android Framework角度来说，Binder是ServiceManager连接各种Manager和相应ManagerService的桥梁   
+
+Binder跨进程通信机制：基于C/S架构，由Client、Server、ServerManager和Binder驱动组成
+
+进程空间分为用户空间和内核空间。用户空间不可以进行数据交互；内核空间可以进行数据交互，所有进程共用一个内核空间   
+
 Client、Server、ServiceManager均在用户空间中实现，而Binder驱动程序则是在内核空间中实现的  
 
 # 6 Binder原理  
@@ -118,7 +125,9 @@ Binder传输最大限制取决于Binder事物缓冲区大小，默认上限是10
 # 15 Binder驱动加载过程中有哪些重要的步骤  
 
 从 Java 层来看就像访问本地接口一样，客户端基于 BinderProxy 服务端基于 IBinder 对象  
+
 在Native层有一套完整的binder通信的C/S架构，Bpinder作为客户端，BBinder作为服务端。基于naive层的Binder框架，Java也有一套镜像功能的binder C/S架构，通过JNI技术，与native层的binder对应，Java层的binder功能最终都是交给native的binder来完成  
+
 从内核看跨进程通信的原理最终是要基于内核的，所以最会会涉及到 binder_open 、binder_mmap 和binder_ioctl这三种系统调用  
 
 ![Binder驱动](./../images/Binder驱动.png)
@@ -129,6 +138,7 @@ Binder传输最大限制取决于Binder事物缓冲区大小，默认上限是10
 服务可分为系统服务与普通服务，系统服务一般是在系统启动的时候，由SystemServer进程创建并注册到ServiceManager中 例如AMS，WMS，PMS。而普通服务一般是通过ActivityManagerService启动的服务，或者说通过四大组件中的Service组件启动的服务。不同主要从以下几个方面：  
 
 服务的启动方式 系统服务这些服务本身其实实现了Binder接口，作为Binder实体注册到ServiceManager中，被ServiceManager管理。这些系统服务是位于SystemServer进程中  
+
 普通服务一般是通过Activity的startService或者其他context的startService启动的，这里的Service组件只是个封装，主要的是里面Binder服务实体类，这个启动过程不是ServcieManager管理的，而是通过ActivityManagerService进行管理的，同Activity管理类似  
 
 服务的注册与管理  
@@ -140,6 +150,7 @@ Binder传输最大限制取决于Binder事物缓冲区大小，默认上限是10
 使用系统服务一般都是通过ServiceManager的getService得到服务的句柄，这个过程其实就是去ServiceManager中查询注册系统服务。而bindService启动的服务，主要是去ActivityManagerService中去查找相应的Service组件，最终会将Service内部Binder的句柄传给Client  
 
 # 17 Activity的bindService流程  
+
 1. Activity调用bindService：通过Binder通知ActivityManagerService要启动哪个Service  
 2. ActivityManagerService创建ServiceRecord，并利用ApplicationThreadProxy回调，通知App新建并启动Service  
 3. AMS启动Service之后，通过ApplicationThreadProxy通知App bindService，让Service返回一个Binder对象给AMS，以便AMS传递给Client  

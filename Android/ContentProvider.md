@@ -4,7 +4,6 @@ ContentProvider 的作用是跨应用数据分享提供统一接口，我们知�
 
 使用场景：跨应用分享数据，从系统App对外接口读取数据，如通讯录读取联系人 
 
-1. 应用A，提供数据共享来源
 
 # 2 ContentProvider、ContentResolver、ContentObserver之间的关系
 `ContentProvider`:管理数据、提供数据增删查改操作，数据源可以是数据库、文件、XML、网络等  

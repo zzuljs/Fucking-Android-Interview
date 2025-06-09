@@ -25,18 +25,23 @@ onCreate->onBind->onUnbind->onDestroy
 startService
 
 1. 启动  
+
 如果服务已经开启，多次执行startService不会重复执行onCreate，而是会调用onStart和onStartCommand  
+
 如果服务已经开启，多次执行bindService，onCreate、onBind方法不会重复调用  
 
 2. 销毁  
+
 当执行stopService时，直接调用onDestroy  
+
 调用者主动调用unbindService，后者调用者的Content不存在（如Activity被finish），Service就会调用onUnbind->onDestroy  
 使用startService方法启用服务，调用者与服务之间没有关联，即使调用者被回收，服务仍然运行  
-使用bindService方法启用服务，调用者和服务之间是绑定的，调用者退出，服务也会终止    
 
-# 2 Service启动流程
+使用bindService方法启用服务，调用者和服务之间是绑定的，调用者退出，服务也会终止   
 
-# 2.1 startService流程
+# 2 Service启动流程  
+
+# 2.1 startService流程  
 
 ![Service启动流程图](./../images/Service启动流程图.png)
 
@@ -65,10 +70,13 @@ startService
 5. AMS收到App的IBinder对象后，传递给调用方Process A，A回调onServiceConnected接口  
 6. Process A获得IBinder对象后，与App进程的跨进程通信就建立了，可以将其转换成AIDL进行IPC  
 
-# 3 Service与Activity如何通信
+# 3 Service与Activity如何通信  
+
 ## 3.1 通过Binder对象  
+
 1. Service中添加一个继承Binder的内部类，并添加相应的逻辑方法；  
 2. Service中重写Service的onBind方法，返回我们刚刚定义的内部类实例；  
+
 ```java
 // MyService.java
 public class MyService extends Service {
@@ -87,7 +95,9 @@ public class MyService extends Service {
     }
 }
 ```
-3. Activity中bindService，重写ServiceConnection，onServiceConnection时返回IBinder调动逻辑方法；
+
+3. Activity中bindService，重写ServiceConnection，onServiceConnection时返回IBinder调动逻辑方法； 
+
 ```java
 // MainActivity.java
 public class MainActivity extends AppCompatActivity {
@@ -146,10 +156,11 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-## 3.2 通过BroadCast广播与Activity通信
-(不推荐) Activity注册动态广播BroadcastReceiver，Service直接调用sendBroadcast即可
+## 3.2 通过BroadCast广播与Activity通信  
 
-# 4 IntentService是什么，IntentService原理，应用场景及其与Service的区别
+(不推荐) Activity注册动态广播BroadcastReceiver，Service直接调用sendBroadcast即可  
+
+# 4 IntentService是什么，IntentService原理，应用场景及其与Service的区别  
 
 IntentService是Service的一个子类，用于处理异步后台任务，通过工作线程（HandlerThrea）逐个处理Intent请求，在任务完成后自动停止，开发者仅需要实现onHandleIntent方法即可  
 
@@ -174,7 +185,8 @@ context.startService(serviceIntent);
 ```
 **适用场景** ：IntentService适用于轻量级、无需即时响应的后台任务，如异步下载文件、将用户行为定时记录到数据库等  
 
-IntentService与Service的对比  
+IntentService与Service的对比:  
+
 | 特性           | IntentService                              | 普通 Service                              |
 | -------------- | ------------------------------------------ | ---------------------------------------- |
 | ​**线程模型**   | 自动创建工作线程，任务异步执行             | 默认在主线程运行，需手动创建子线程       |
@@ -185,23 +197,32 @@ IntentService与Service的对比
 # 5 Service的onStartCommand方法有几种返回值？各代表什么意思？
 
 1. `START_NOT_STICKY`  
+
 在执行完onStartCommand后，服务被异常kill，系统不会重启该服务  
 
 2. `START_STICKY`  
+
 重传Intent，使用这个返回值时，如果在执行完onStartCommand后，服务被异常kill，系统会自动重启该服务，并且onStartCommand方法会执行，onStartCommand方法中的intent为null
 
-3.`START_REDELIVER_INTEN`  
+3. `START_REDELIVER_INTEN`  
+
 使用这个返回值时，服务被异常kill时，系统会自动开启服务，并将Intent的值传入  
 适用于主动执行应该恢复的作业（如下载文件）
 
 # 6 bindService与startService混合使用的生命周期以及如何关闭？
 
 如果只是想启动一个后台服务长期进行某项服务，那么使用startService就可以了  
+
 如果还要与Activity通信，有两种方案：1.使用Broadcast；2.使用bindService  
-如果先startService，再bindService，那么生命周期顺序是：onCreate->onStartCommand->onBind
+
+如果先startService，再bindService，那么生命周期顺序是：onCreate->onStartCommand->onBind  
+
 如果先bindService，再startService，那么生命周期顺序是：onCreate->onBind->onStartCommand  
 
 在 startService+bindService执行之后，  
+
 如果仅调用stopService，Service不会立刻执行onDestroy，在Activity退出之后，再执行onDestroy  
+
 如果仅调用unbindService，只有onUnbind方法回调，不会执行onDestroy, 即便是Activity退出，也不会onDestroy  
+
 如果要完全退出Service，那么应该先调用unbindService，再执行stopService，此时Service的生命周期：onUnbind->onDestroy  
