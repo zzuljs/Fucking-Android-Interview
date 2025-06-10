@@ -398,7 +398,7 @@ RouterProcessor会根据收集到的信息生成路由表：
 
 每个配置了 ARouter 注解处理器（并指定了 AROUTER_MODULE_NAME 参数）的模块，都会生成一个这样的文件；实现了IRouteRoot 接口。它们的核心是一个`loadInto(Map<String, Class<? extends IRouteGroup>> routes) `方法。这个方法内部包含了将当前模块包含的所有 group 的名称  
 
-这是一个模块级别的路由入口。在 ARouter 初始化时，它会扫描并加载所有这些 ARouter$$Root$$xxx.java 文件，从而快速构建一个总体的 group 到 IRouteGroup 类文件的映射。这个映射是应用程序启动时最先加载的路由元数据，它相对较小，保证了快速启动。
+这是一个模块级别的路由入口。在 ARouter 初始化时，它会扫描并加载所有这些 `ARouter$$Root$$xxx.java`文件，从而快速构建一个总体的 group 到 IRouteGroup 类文件的映射。这个映射是应用程序启动时最先加载的路由元数据，它相对较小，保证了快速启动。
 
 ## 8 ARouter 跳转是依赖反射还是代码生成？性能如何？  
 
