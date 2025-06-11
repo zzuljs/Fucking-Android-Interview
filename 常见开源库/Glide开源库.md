@@ -169,15 +169,83 @@ Glide.with(this)
 ```
 ## 你如何控制 Glide 的缓存策略？
 
+Glide可以控制两种缓存策略，即内存缓存（Memory Cache）和磁盘缓存（Disk Cache），默认情况下，缓存策略开启，两者组合生效   
+```java
+Glide.with(context)
+    .load(url)
+    .skipMemoryCache(true) // 跳过内存缓存
+    .into(imageView);
+
+Glide.with(context)
+    .load(url)
+    .diskCacheStrategy(DiskCacheStrategy.ALL) // 缓存原始数据和转换后的数据
+    .into(imageView);
+
+Glide.get(context).clearMemory(); // 清除缓存，在主线程调用
+    
+```
+
+可以调整缓存大小：
+
+```java
+@GlideModule
+public class MyAppGlideModule extends AppGlideModule {
+    @Override
+    public void applyOptions(@NonNull Context context, @NonNull GlideBuilder builder) {
+        // 设置内存缓存大小为 10MB
+        int memoryCacheSizeBytes = 1024 * 1024 * 10; // 10MB
+        builder.setMemoryCache(new LruResourceCache(memoryCacheSizeBytes));
+
+        // 设置磁盘缓存大小为 500MB，并指定自定义缓存目录
+        int diskCacheSizeBytes = 1024 * 1024 * 500; // 500MB
+        builder.setDiskCache(new ExternalPreferredCacheDiskCacheFactory(context, "my_glide_cache", diskCacheSizeBytes));
+        // 或者使用内部存储：
+        // builder.setDiskCache(new InternalCacheDiskCacheFactory(context, "my_glide_cache", diskCacheSizeBytes));
+    }
+}
+```
+
 ### 什么是 `DiskCacheStrategy`？
+
+`DiskCacheStrategy`是一种策略模式，用于控制磁盘缓存行为，决定Glide如何从磁盘中读写缓存  
+
+Glide加载一张图片，会经过以下几个阶段：  
+- 下载原始数据：从网络或者本地获取原始数据  
+- 解码：将原始数据转换成位图（Bitmap）  
+- 转换：根据业务需求进行转换，如裁剪、缩放、圆角等  
+- 显示：into到ImageView  
+
+这个过程中会有2个数据，一个是原始数据，一个是加载过程中基于原始数据产生的转换数据，`DiskCacheStrategy`对于这两个数据有不同的缓存策略：  
+
+- `DiskCacheStrategy.ALL`: 缓存原始数据和转换后的数据  
+- `DiskCacheStrategy.NONE`： 不缓存任何数据  
+- `DiskCacheStrategy.DATA`(Glide 3.x版本对应 `DiskCacheStrategy.SOURCE`) : 只缓存原始数据，转码、转换的数据不缓存  
+- `DiskCacheStrategy.RESOURCE`: 只缓存转换后的数据  
+- `DiskCacheStrategy.AUTOMATIC`(Glide 4.x默认值)： Glide会根据`EncodeStrategy`和`DataSource`自动选择合适的缓存策略  
 
 ### 如何只从内存加载，不使用磁盘缓存？
 
-### 如何监听图片加载结果（成功/失败）？
+```java
+Glide.with(context)
+     .load(url)
+     .diskCacheStrategy(DiskCacheStrategy.NONE) // 不使用磁盘缓存
+     .onlyRetrieveFromCache(true) // 只从缓存中加载（内存或磁盘，但由于上面设置了NONE，所以实际只从内存）
+            // .skipMemoryCache(false) // 内存缓存默认开启，通常不需要显式设置
+     .into(imageView);
+```
 
-如何给 RecyclerView 加载大量图片时防止卡顿或错位？    
+### 如何给 RecyclerView 加载大量图片时防止卡顿或错位？    
 
-🔍 二、进阶机制（用于判断是否理解 Glide 的内部设计）
+RecyclerView的优化一般从RecyclerView四级缓存、ViewHolder复用、预加载策略等方式入手  
+
+Glide层面的优化，主要包括——
+
+- 占位图，使用placeHolder、error图等，避免ImageView显示闪烁，体验更丝滑  
+- 禁用动画，如果需要，可以减少动画带来的额外开销 `dontAnimation`  
+- 手动调整Glide缓存配置，AppGlideModule.applyOptions提供这样的接口  
+
+# 🔍 二、进阶机制（用于判断是否理解 Glide 的内部设计）
+
 Glide 的图片加载流程是怎样的？（大致从调用到显示的过程）
 
 Glide 的内存缓存和磁盘缓存是如何工作的？使用了哪些数据结构？
@@ -194,7 +262,8 @@ Glide 如何感知 Activity/Fragment 生命周期？怎么做到自动取消请�
 
 Glide 中的 BitmapPool 有什么用？和 LruCache 有什么区别？
 
-🔬 三、源码与优化（适合高级面试者）
+# 🔬 三、源码与优化（适合高级面试者）
+
 你了解 Glide 的模块化设计吗？比如 AppGlideModule 有什么作用？
 
 如果要给 Glide 增加一个自定义的解码器（例如 WebP 动图），如何实现？
