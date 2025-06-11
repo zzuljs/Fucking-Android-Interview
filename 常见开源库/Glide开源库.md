@@ -258,9 +258,34 @@ Glide 如何处理大图加载、采样缩放（Downsampling）？
 
 Glide 中的 RequestManager 和 RequestBuilder 是什么关系？
 
-Glide 如何感知 Activity/Fragment 生命周期？怎么做到自动取消请求的？
+## Glide 如何感知 Activity/Fragment 生命周期？怎么做到自动取消请求的？
 
-Glide 中的 BitmapPool 有什么用？和 LruCache 有什么区别？
+`Glide`通过在每个`Activity / Fragment `中自动插入一个隐藏的`Fragment`（不显示 UI、没有布局），利用`Fragment`自带的生命周期回调来感知宿主生命周期变化，并自动管理请求  
+
+```
+Glide.with(Activity/Fragment/View)
+        ↓
+RequestManagerRetriever
+        ↓
+插入隐藏 Fragment (RequestManagerFragment)
+        ↓
+Fragment 生命周期绑定
+        ↓
+RequestManager 接管请求的暂停、恢复、取消
+
+```
+
+## Glide 中的 BitmapPool 有什么用？和 LruCache 有什么区别？
+
+`BitmapPool`是一个复用已回收但内存尚可用的 Bitmap 对象的池子，目的是避免频繁申请和释放内存，提升性能、减少内存碎片和 GC 压力  
+
+在Glide内部，LruCache和BitmapPool配合使用：  
+- LruCache缓存当前可直接展示的Bitmap，按key存放（URL hash）存放，直接复用  
+- BitmapPool是当缓存被清理后，仍可以直接复用内存的bitmap（没有被recyle的bitmap），用于下一次按需分配复用  
+- LruCache关注的是数据命中缓存，BitmapPool关注的是内存复用  
+
+举个例子：一个bitmap，在列表里反复出现，由于LRU算法策略（最小最邻近使用），这个bitmap会一致存在LruCache队列中，但如果一段时间不使用，有可能被LruCache淘汰，但此时bitmap可能没有被系统回收内存，就会先保存在bitmapool中，等系统触发GC了，再从Pool里淘汰掉
+
 
 # 🔬 三、源码与优化（适合高级面试者）
 
