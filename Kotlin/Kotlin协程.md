@@ -497,27 +497,226 @@ suspend fun loadData() = coroutineScope {
 }
 ```
 
-你了解 SupervisorJob 和 Job 的区别吗？何时用它？
+## 你了解 SupervisorJob 和 Job 的区别吗？何时用它？
 
-CoroutineExceptionHandler 是如何工作的？在哪些场景有效？
+## CoroutineExceptionHandler 是如何工作的？在哪些场景有效？
 
 # 🔄 挂起函数与取消机制
-如何取消协程？Job.cancel() 的原理是什么？
 
-isActive、ensureActive()、yield() 这些函数你用过吗？各自作用？
+## 如何取消协程？Job.cancel() 的原理是什么？
 
-什么是 cooperative cancellation？为什么它重要？
+每个协程都会有一个与之关联的Job对象，通过Job.cancel取消协程  
 
-挂起函数执行过程中如果不检查取消，会发生什么？如何改进？
+Job.cancel并不是系统中断，而是一种软中断，通过标记Job状态，并传播CancellationException来通知协程停止执行，协程需要通过检查取消状态或调用挂起函数来响应取消信号  
+
+## isActive、ensureActive()、yield() 这些函数你用过吗？各自作用？
+
+这些函数都是协程协作式取消机制的核心工具  
+
+1. `isActive`属性  
+
+这是一个布尔值，true表示协程处于活跃状态，false表示协程被取消  
+
+```kotlin
+import kotlinx.coroutines.*
+
+fun main() = runBlocking {
+    val job = launch(Dispatchers.Default) {
+        var count = 0
+        while (isActive) { // 检查协程是否活跃
+            println("Working... ${count++}")
+            delay(100) // 模拟一些工作
+        }
+        println("协程被取消了，停止工作。")
+    }
+
+    delay(500) // 运行一段时间
+    job.cancel() // 取消协程
+    job.join() // 等待协程结束
+}
+```
+
+2. `ensureActive` 挂起函数  
+
+ensureActive是一个挂起函数，作用是检查当前协程的Job是否活跃，如果被取消（isActive == false）会抛出CancellationException异常  
+
+```kotlin
+import kotlinx.coroutines.*
+
+fun main() = runBlocking {
+    val job = launch {
+        try {
+            repeat(1000) { i ->
+                ensureActive() // 强制检查取消状态
+                println("Operation $i")
+                // 模拟一个没有挂起点的耗时计算
+                Thread.sleep(10)
+            }
+        } catch (e: CancellationException) {
+            println("Operation was cancelled: $e")
+        } finally {
+            println("清理资源...")
+        }
+    }
+
+    delay(100) // 运行一段时间
+    job.cancel() // 取消协程
+    job.join()
+}
+```
+
+3. `yield`挂起函数  
+
+- 让出CPU控制权，暂停当前协程执行，并将其调度到调度器的末尾，允许其他协程有机会运行，避免协程长时间占用CPU导致其他协饥饿  
+- 检查取消状态：这一点与ensureActive相同，检查取消状态，如果被标记为取消，抛出CancellationException  
+
+## 挂起函数执行过程中如果不检查取消，会发生什么？如何改进？
+
+可能会导致协程在取消之后，仍然继续执行，导致业务逻辑错乱  
+
+```kotlin
+// 协程取消之后，循环会继续执行
+suspend fun busyWork() {
+    repeat(10_000) {
+        println("Working $it") // 没有挂起点
+    }
+}
+
+// 改进版，增加取消检测点
+suspend fun busyWork() {
+    coroutineContext.ensureActive() // 主动检测取消
+    repeat(10_000) {
+        if (!coroutineContext.isActive) return // 或者 break/throw
+        println("Working $it")
+        yield() // 也是取消检查点
+    }
+}
+```
+
+协程被取消后，如Job.cancel，需要手动响应取消，可以考虑使用isActive+CancellationException的方法:
+
+```kotlin
+suspend fun CoroutineScope.checkCanceled() {
+    if (!isActive) throw CancellationException("Canceled by user")
+}
+```
 
 # 📱 与 Android 框架结合
-你在项目中是如何使用协程的？是否与 ViewModel、LiveData、Flow 结合使用？
+## 你在项目中是如何使用协程的？是否与 ViewModel、LiveData、Flow 结合使用？
 
-viewModelScope 和 lifecycleScope 分别是什么？为何推荐使用它们？
+1. 在ViewModel中启动协程，与LiveData结合  
 
-你用过 LiveData + Coroutine 的组合吗？如何处理生命周期？
+```kotlin
+class MyViewModel : ViewModel() {
 
-协程在 Activity 被销毁后仍在运行，会发生什么问题？如何避免？
+    private val _uiState = MutableLiveData<Result>()
+    val uiState: LiveData<Result> = _uiState
+
+    fun fetchData() {
+        viewModelScope.launch {
+            try {
+                val data = repository.loadData()
+                _uiState.value = Result.Success(data)
+            } catch (e: Exception) {
+                _uiState.value = Result.Error(e)
+            }
+        }
+    }
+}
+```
+
+2. 使用Flow
+```kotlin
+fun fetchItems(): Flow<List<Item>> = flow {
+    val result = apiService.getItems()
+    emit(result)
+}.flowOn(Dispatchers.IO)
+```
+在ViewModel中collect
+```kotlin
+fun observeItems() {
+    viewModelScope.launch {
+        repository.fetchItems()
+            .catch { e -> /* 处理异常 */ }
+            .collect { items ->
+                _uiState.value = items
+            }
+    }
+}
+```
+
+## viewModelScope 和 lifecycleScope 分别是什么？为何推荐使用它们？
+
+viewModelScope 和 lifecycleScope 是 Jetpack 提供的协程作用域（CoroutineScope），用于在 Android 中优雅地管理协程的生命周期，防止内存泄漏和协程悬挂  
+
+```kotlin
+class MyViewModel : ViewModel() {
+
+    fun loadData() {
+        viewModelScope.launch {
+            val data = repository.getData()  // 协程挂起函数
+            // 更新 UI 状态
+        }
+    }
+}
+
+class MyActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        lifecycleScope.launch {
+            val result = fetchData()
+            // 更新 UI
+        }
+    }
+}
+```
+
+## 你用过 LiveData + Coroutine 的组合吗？如何处理生命周期？
+
+```kotlin
+class MyViewModel : ViewModel() {
+
+    private val _userData = MutableLiveData<User>()
+    val userData: LiveData<User> = _userData
+
+    fun loadUser(userId: String) {
+        viewModelScope.launch {
+            // suspend 函数
+            val user = repository.getUser(userId) 
+            _userData.value = user
+        }
+    }
+}
+
+class MyFragment : Fragment() {
+
+    private val vm: MyViewModel by viewModels()
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        vm.userData.observe(viewLifecycleOwner) { user ->
+            // 更新UI
+        }
+
+        vm.loadUser("123")
+    }
+}
+```
+
+- LiveData.observe() 接受一个 LifecycleOwner（如 viewLifecycleOwner），只在对应生命周期内回调数据，自动解绑  
+
+- viewModelScope 绑定到 ViewModel 生命周期，保证协程在 ViewModel 销毁时取消，避免内存泄漏  
+
+- UI层观察 LiveData，配合 viewLifecycleOwner（Fragment中）避免界面销毁后继续更新数据导致崩溃  
+
+## 协程在 Activity 被销毁后仍在运行，会发生什么问题？如何避免？
+
+最大的问题是内存泄漏，资源浪费，甚至导致程序崩溃  
+
+一般通过作用域的方式管理协程，或者获取协程Job，手动管理
 
 # 🧪 实践场景题（带思维能力考察）
 你有一个网络请求 + 本地缓存的场景，怎么用协程实现？需要考虑并发和取消。
