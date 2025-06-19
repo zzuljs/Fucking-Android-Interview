@@ -123,7 +123,69 @@ runBlocking {
 - 调度器从线程池中找一个可用线程，启动协程  
 - 如果遇到挂起点（如delay），挂起当前协程，线程释放  
 - 一段时间后，调度器选择一个线程恢复挂起的协程  
-- 恢复后，协程从挂起点继续执行
+- 恢复后，协程从挂起点继续执行  
+
+## async、await、join的区别是什么？
+
+async 可以构建一个协程，用于启动一个协程并返回Deferred对象，表示未来产生结果的异步任务  
+
+```kotlin
+// taskA和taskB并行执行
+val taskA = async { fetchDataA() }
+val taskB = async { fetchDataB() }
+```
+
+await 是Deferred的挂起函数，用于等待任务完成并获取结果，若结果未就绪，当前协程被挂起，待结果返回后执行  
+
+```kotlin
+val token = async { login() }.await() // 先获取token
+val user = async { getUser(token) }   // 再用token请求用户信息
+```
+
+join 用于挂起协程，效果和await类似，作用于Job对象，不关心协程返回值，而是确保协程执行顺序或同步多个任务的完成  
+
+```kotlin
+runBlocking {
+    val jobA = launch { taskA() }
+    jobA.join() // 等待A完成
+    launch { taskB() } // 再启动B
+}
+```
+
+## Job、Deferred区别是什么？  
+
+1. Job  
+
+管理协程的生命周期（状态包括Active、Cancelling、Completed等），提供方法如：
+
+- cancel()：取消任务及所有子任务
+- join()：挂起当前协程，等待任务完成（不关心结果）
+- invokeOnCompletion()：监听任务完成事件（含异常捕获）
+
+适用场景：无需返回值的后台任务，控制任务执行顺序  
+
+```kotlin
+val jobA = launch { taskA() }
+jobA.join() // 等待A完成
+launch { taskB() }
+```
+
+2. Deferred  
+
+Deferred​是Job的子类，在Job基础上增加结果处理能力：
+
+- await()：挂起协程直至获取结果，若任务失败则抛出异常
+- getCompleted()：直接获取已完成的结果（需确保任务已完成，否则抛异常）
+
+适用场景：并发执行多个异步任务，并聚合结果  
+
+```kotlin
+
+val data1 = async { fetchUser() }
+val data2 = async { fetchNews() }
+val combined = data1.await() + data2.await()
+
+```
 
 ## 你了解 Kotlin 的协程是基于什么实现的？是语言层面的魔法还是库层实现？
 
@@ -724,14 +786,167 @@ class MyFragment : Fragment() {
 
 ## 如何用 async 并发执行两个耗时任务，并收集它们的结果？
 
+async会返回一个Deferred对象，使用await可以挂起并发的协程
+
+```kotlin
+suspend fun fetchCombinedData(): Pair<String, Int> = coroutineScope {
+    val deferred1 = async(Dispatchers.IO) {
+        delay(1000)
+        "网络请求结果"
+    }
+
+    val deferred2 = async(Dispatchers.Default) {
+        delay(800)
+        42
+    }
+
+    // 等待两个任务完成
+    val result1 = deferred1.await()
+    val result2 = deferred2.await()
+
+    // 耗时t=max(result1, result2)
+    result1 to result2
+}
+```
+
 ## 启动多个协程，如果其中某个失败，其他协程怎么办？如何控制它们的取消策略？
+
+取决于结构化并发设计，既可以设计成“一个失败，全部失败”，也可以设计成“一个失败，其他继续”  
+
+例如，使用coroutineScope：
+
+```kotlin
+suspend fun testDefaultCancel() = coroutineScope {
+    val one = async {
+        delay(1000)
+        "成功结果"
+    }
+
+    val two = async {
+        delay(500)
+        throw RuntimeException("第二个任务失败")
+    }
+
+    // 若 two 失败，整个作用域会被取消，one 会被取消
+    one.await() + two.await()
+}
+```
+
+使用supervisorScope的情况
+
+```kotlin
+suspend fun testSupervisor() = supervisorScope {
+    val one = async {
+        delay(1000)
+        "成功结果"
+    }
+
+    val two = async {
+        delay(500)
+        throw RuntimeException("第二个失败")
+    }
+
+    try {
+        two.await()
+    } catch (e: Exception) {
+        println("捕获异常但不取消 one")
+    }
+
+    one.await() // 能正常执行
+}
+```
 
 ## 怎么写一个能自动超时的协程操作？你用过 withTimeout() 吗？
 
+withTimeout会指定协程运行时间，如果超时会取消协程，并返回TimeoutCancellationException  
+
+```kotlin
+viewModelScope.launch {
+    try {
+        val result = withTimeout(3000) {
+            repository.fetchData()
+        }
+        _uiState.value = result
+    } catch (e: TimeoutCancellationException) {
+        _error.value = "请求超时"
+    }
+}
+```
+
+还有个withTimeoutOrNull，超时取消协程，返回null，不会抛异常
+```kotlin
+val result = withTimeoutOrNull(3000) {
+    repository.fetchData()
+} ?: return@launch showError("超时啦")
+```
+
 # 💥 陷阱与高阶
 
-## 协程为什么可能导致内存泄漏？你遇到过吗？
+## 协程为什么可能导致内存泄漏？你遇到过吗？  
+
+1. 作用域使用错误，如GlobalScope  
+
+```kotlin
+fun loadData() {
+    GlobalScope.launch {
+        // 引用了 Activity，但它可能早就被销毁
+        val result = api.load()
+        activity.textView.text = result // ⚠️ 内存泄漏风险
+    }
+}
+```
+
+2. 没有正确取消协程  
+
+```kotlin
+class MyRepository {
+    private val scope = CoroutineScope(Dispatchers.IO)
+
+    fun loadData() {
+        scope.launch {
+            while (isActive) {
+                delay(1000)
+                fetchRemote()
+            }
+        }
+    }
+}
+```
+这种情况，即便是MyRepository生命周期结束，协程会持续运行  
+
+```kotlin
+class MyRepository {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun loadData() {
+        scope.launch { ... }
+    }
+
+    fun clear() {
+        scope.cancel() // 适当时机，手动取消所有协程
+    }
+}
+```
+
+3. 未正确使用ViewModel等组件  
+```kotlin
+fun loadData(viewModel: MyViewModel) {
+    viewModel.viewModelScope.launch {
+        // ❌ 如果 viewModel 被回收，而这个函数仍被持有 ➜ 泄漏
+    }
+}
+```
 
 ## 为什么说协程虽然轻量，但不是免费线程？过度使用有什么风险？
 
-## 你是否实现过自己的 suspend 函数？怎么让一个普通回调函数变成挂起函数？
+协程比起线程要轻量级，但也有消耗，主要集中在：
+
+| 资源消耗         | 说明                                        |
+| ------------ | ----------------------------------------- |
+| **内存消耗**     | 每个协程依然需要分配内存（状态机、堆栈帧、上下文等），大量协程会占用显存和堆内存。 |
+| **CPU 调度开销** | 协程切换虽然轻量，但仍有调度开销，过多协程会影响性能。               |
+| **挂起点开销**    | 每个挂起函数的状态保存和恢复会有少量性能损失。                   |
+| **上下文切换**    | 线程和协程切换虽然不同，但频繁切换还是有消耗。                   |
+
+
+过度使用协程，同样会导致OOM、系统资源紧张等问题
