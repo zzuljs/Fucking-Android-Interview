@@ -253,12 +253,6 @@ internal fun dispatch(activity: Activity, event: Lifecycle.Event) {
 LiveData默认粘性，想要避免粘性，需要手动标记  
 
 ```kotlin
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.Observer
-import java.util.concurrent.atomic.AtomicBoolean
-
 class SingleLiveEvent<T> : MutableLiveData<T>() {
 
     private val pending = AtomicBoolean(false) // 用于标记事件是否待处理

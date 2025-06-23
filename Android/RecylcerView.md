@@ -41,7 +41,7 @@
 
 `Cache`维持了一个`FIFO`队列结构，用于上下滚动场景，直接从队尾取数据，时间复杂度也是`O(1)`  
 
-# 2 RecyclerView的滑动回收复用机制  
+# 2 `RecyclerView`的滑动回收复用机制  
 
 `RecyclerView`滑动回收本质上是`View`的动态复用，在滑动过程中，移除屏幕的`View`被回收到缓存，新进入屏幕的`item`优先从缓存池中获取，避免重复创建和布局计算  
 
@@ -56,14 +56,14 @@
 
 以上就是一次完整的滑动回收  
 
-# 3 RecyclerView的刷新回收复用机制  
+# 3 `RecyclerView`的刷新回收复用机制  
 
 `notify`后，`RecyclerView`会进行两次布局，一次预布局，一次实际布局，然后执行动画操作  
 
 1.查找改变的`Holder`，保存在`mChangedScrap`中，其他未改变的保存在`mAttachedScrap`中  
 2.创建新的`Holder`并绑定数据，充当改变位置的`Holder`，其他`Holder`从`mAttachedScrap`中获取  
 
-# 4 RecyclerView为什么要预布局  
+# 4 `RecyclerView`为什么要预布局  
 
 预布局是支持动画和高效布局更新的核心机制，目的是在数据变化前记录视图的旧状态、为动画过渡提供基准  
 当`RecyclerView`发生数据变动时，若直接应用新布局，会导致以下问题：
@@ -105,14 +105,14 @@ void dispatchLayoutStep3() {
 }
 ```
 
-# 5 ListView与RecyclerView区别  
+# 5 `ListView`与`RecyclerView`区别  
 
 1. 布局更加灵活  
 
 `RecyclerView`支持更多布局（线性、网格、瀑布流），通过`LayoutManager`动态配置  
 `ListView`仅支持垂直滚动列表，灵活性差  
 
-2. ViewHolder模式  
+2. `ViewHolder`模式  
 
 `RecyclerView`强制`ViewHolder`模式，通过继承`RecyclerView.ViewHolder`，减少`findViewById`调用，提升性能  
 `ListView`模式为可选优化，开发者需要手动实现  
@@ -132,7 +132,7 @@ void dispatchLayoutStep3() {
 `RecyclerView`提供四级缓存机制，复用机制更高效，支持预加载和嵌套滚动  
 `ListView`采用两级缓存机制，复杂列表容易卡顿，嵌套滚动性能差  
 
-# 6 RecyclerView性能优化  
+# 6 `RecyclerView`性能优化  
 
 1. 数据处理和视图加载分离  
 
