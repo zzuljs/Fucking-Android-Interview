@@ -430,7 +430,103 @@ ARouter.init在Application.onCreate方法中初始化, 主要完成如下任务�
 
 ## 13 @Autowired 注解的实现机制是什么？如何支持依赖注入？
 
+`ARouter`的`@Autowired`用于页面跳转时自动注入参数，通过APT+反射来实现依赖注入  
+
+```kotlin
+@Route(path = "/user/detail")
+class UserDetailActivity : AppCompatActivity() {
+
+    @Autowired
+    lateinit var userId: String
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        ARouter.getInstance().inject(this)
+        ...
+    }
+}
+```
+
+实现机制核心步骤:
+
+1. 编译期通过 APT 收集注解信息
+
+- ARouter 使用 APT 注解处理器（基于 JavaPoet）在编译期分析 @Autowired 注解
+- 为每个使用了 @Autowired 的类生成一个辅助类，如`UserDetailActivity$$ARouter$$Autowired`
+
+```kotlin
+public class UserDetailActivity$$ARouter$$Autowired implements ISyringe {
+    @Override
+    public void inject(Object target) {
+        UserDetailActivity t = (UserDetailActivity) target;
+        t.userId = t.getIntent().getStringExtra("userId");
+    }
+}
+
+```
+
+
+2. 运行时调用 ARouter.inject(this) 执行注入
+
+- inject() 方法会根据路由表找到对应的 ISyringe 实现类（如上例）
+- 然后通过反射调用注入逻辑，将参数从 Intent 或 Bundle 中取出并赋值到字段
+```kotlin
+// 源码简化版，ISyringe即辅助类顶层接口
+private ISyringe getSyringe(Class<?> clazz) {
+    String className = clazz.getName();
+
+    try {
+        if (!blackList.contains(className)) {
+            ISyringe syringeHelper = classCache.get(className);
+            if (null == syringeHelper) {  // No cache.
+                syringeHelper = (ISyringe) Class.forName(clazz.getName() + SUFFIX_AUTOWIRED).getConstructor().newInstance();
+            }
+            classCache.put(className, syringeHelper);
+            return syringeHelper;
+        }
+    } catch (Exception e) {
+        blackList.add(className);    // This instance need not autowired.
+    }
+
+    return null;
+}
+```
+
 ## 14 ARouter 的拦截器机制是如何设计的？如何实现一个登录拦截器？
+
+每一个拦截器在ARouter初始化的时候会被整合到一个List中，每次跳转时都会遍历一遍，拦截器通过跳转时的PostCard对象能够识别出来每次跳转的信息（如Path、Extra等），在process中处理相关逻辑，处理流程是个串行的链表，onContinue接口表示继续下一个拦截器，onInterrupt表示拦截  
+
+每次跳转都会遍历拦截器列表，这个逻辑默认开启，可以通过设置greenChannel来跳过拦截器逻辑
+
+```kotlin
+@Interceptor(priority = 10, name = "LoginInterceptor")
+public class LoginInterceptor implements IInterceptor {
+
+    @Override
+    public void process(Postcard postcard, InterceptorCallback callback) {
+        if (isLogin()) {
+            callback.onContinue(postcard); // 放行
+        } else {
+            // 拦截并跳转登录页
+            ARouter.getInstance()
+                .build("/user/login")
+                .navigation();
+            callback.onInterrupt(new RuntimeException("用户未登录"));
+        }
+    }
+
+    @Override
+    public void init(Context context) {
+        // 初始化，比如读取 token 等
+    }
+
+    private boolean isLogin() {
+        // 实际根据业务判断登录状态
+        return UserManager.getInstance().isLogin();
+    }
+}
+
+```
 
 ## 15 多线程下 ARouter 是如何保证线程安全的？  
 
