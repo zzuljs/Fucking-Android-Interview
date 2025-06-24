@@ -1,7 +1,7 @@
 ✅ 一、基本使用与优劣对比
-什么是 MMKV？它解决了什么问题？
+# 什么是 MMKV？它解决了什么问题？
 
-➤ 考察：是否了解 MMKV 的核心定位，及其与 SharedPreferences 的区别。
+
 
 MMKV 和 SharedPreferences 有哪些异同？
 
