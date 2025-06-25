@@ -262,11 +262,92 @@ class MainActivity : AppCompatActivity() {
 }
 ```
 
-## @HiltAndroidApp 的作用是什么？为什么必须加在 Application 上？
+## @HiltAndroidApp 的作用是什么？为什么必须加在 Application 上？  
+
+@HiltAndroidApp 生成一个继承自项目自定义的Application的Hilt_Application类，创建并管理整个应用级别的依赖注入容器，作为整个依赖注入图的根节点  
+
+Hilt必须加在Application上，Hilt整个依赖注入流程是从Application开始的，它会在Application.onCreate之前自动初始化依赖图（通过ContentProvider）  
+
+很多依赖是单例的（如网络库、数据库、配置管理器等），它们需要绑定在SingletonComponent中，这个Component是由@HiltAndroidApp创建和持有  
+
+只偶遇使用了@HiltAndroidApp，Hilt才能够为Activity/Fragment/ViewModel提供注入依赖的能力  
+
+@HiltAndroidApp的初始化能力、相关核心类的生成，是由HiltAndroidAppProcessor来完成的  
 
 ## @AndroidEntryPoint 有什么用？可以加在哪些类上？为什么 Activity/Fragment 都要加这个注解？
 
+@AndroidEntryPoint 核心作用是为目标类提供Hilt容器，例如Activity对应ActivityComponent，Fragment对应FragmentComponent， 使用目标类能直接使用@Inject来注入依赖  
+
+```kotlin
+@AndroidEntryPoint
+class MainActivity : AppCompatActivity()
+```
+
+被Hilt的Annotation Processor在编译器处理：  
+
+```java
+public abstract class Hilt_MainActivity extends AppCompatActivity implements GeneratedComponentManagerHolder {
+    private ActivityComponentManager componentManager;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        inject(); // 注入依赖
+        super.onCreate(savedInstanceState);
+    }
+
+    private void inject() {
+        // 拿到 Component 并注入 this
+        ((MainActivity_GeneratedInjector) generatedComponent()).injectMainActivity(this);
+    }
+}
+
+
+// 改变MainActivity的父类，提供依赖注入的能力
+public class MainActivity extends Hilt_MainActivity {
+    // 自动完成注入流程
+}
+
+```  
+
+inject方法提供了注入的核心方法：  
+
+```java
+
+// MainActivity_GeneratedInjector.java
+((MainActivity_GeneratedInjector) generatedComponent()).injectMainActivity(this);
+
+
+// DaggerMainActivityComponent.java
+@Override
+public void injectMainActivity(MainActivity instance) {
+    injectMainActivity2(instance);
+}
+
+private MainActivity injectMainActivity2(MainActivity instance) {
+    instance.repo = repoProvider.get(); // 💥 就是这里：完成字段注入
+    return instance;
+}
+```
+
+
 ## @Inject 和 @Provides 的区别是什么？使用场景分别是什么？
+
+@Inject通常用于能够控制源码的类，@Provides通常用于无法使用@Inject的场景，比如三方库  
+
+```java
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.example.com/")
+            .build()
+    }
+}
+```
 
 ## @Singleton 的作用是什么？在Hilt中是如何实现单例的？
 
