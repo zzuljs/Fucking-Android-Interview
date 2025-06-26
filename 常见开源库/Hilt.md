@@ -194,7 +194,9 @@ abstract class ServiceBindingModule { // 使用abstract class for @Binds
 ```
 `@Provides`:用于提供类的实例  
 `@Binds`：用于将接口绑定到现实类（更高效、因为Hilt不会生成额外的工厂类）
-`@InstallIn`：指定模块生命周期，如`SingletonComponent::class`表示与Application绑定
+`@InstallIn`：指定模块生命周期，如`SingletonComponent::class`表示与Application绑定  
+
+@Modules 提供依赖模块 + @InstallIn 声明生命周期作用域 + @Provides 表明这是个需要Hilt注入依赖的方法
 
 5. 注入ViewModel  
 
@@ -349,15 +351,92 @@ object NetworkModule {
 }
 ```
 
-## @Singleton 的作用是什么？在Hilt中是如何实现单例的？
+## @Singleton 的作用是什么？在Hilt中是如何实现单例的？  
+
+在Hilt中，@Singleton表示，这个对象在Application整个生命周期中只会被创建一次，全局单例  
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder().build()
+    }
+}
+
+```
 
 ## @ActivityRetainedScoped 是什么？和 @ViewModelScoped 区别是什么？
 
-## Hilt 中有哪些常见的作用域注解？能否举例说明它们适用于哪些组件？
+@ActivityRetainedScoped 是 “跨配置变化复用” 的作用域（比如旋转屏幕不会销毁它），绑定在ActivityRetainedComponent，在同一个Activity多次重建之间共享
 
-## Hilt 提供的作用域是线程安全的吗？
+@ViewModelScoped 是 “和某个 ViewModel 同生命周期” 的作用域，ViewModel 销毁时一并销毁，绑定在ViewModelComponent  
 
-# 🧰 三、模块与绑定相关问题
+## Hilt 中有哪些常见的作用域注解？能否举例说明它们适用于哪些组件？  
+
+| 作用域注解                     | 生命周期组件（Component）           | 生命周期说明                      | 常见用途示例                        |
+| ------------------------- | --------------------------- | --------------------------- | ----------------------------- |
+| `@Singleton`              | `SingletonComponent`        | **应用级**，App 生命周期            | 网络库、数据库、全局管理器                 |
+| `@ActivityRetainedScoped` | `ActivityRetainedComponent` | 配置变化不销毁，等同 ViewModel 生命周期   | 多个 ViewModel 共享状态、缓存、仓库       |
+| `@ActivityScoped`         | `ActivityComponent`         | Activity 实例级，随 Activity 销毁  | Dialog 管理器、UI控制器、Context 相关类  |
+| `@ViewModelScoped`        | `ViewModelComponent`        | 单个 ViewModel 实例生命周期         | UseCase、Repository、业务状态对象     |
+| `@FragmentScoped`         | `FragmentComponent`         | Fragment 实例级，随 Fragment 销毁  | Fragment 专属逻辑或资源类             |
+| `@ViewScoped`             | `ViewComponent`             | View 生命周期（绑定 Fragment/View） | ViewBinding、RecyclerView 适配器等 |
+| `@ServiceScoped`          | `ServiceComponent`          | Service 生命周期                | 后台服务相关依赖，如前台通知、传感器类           |
+
+
+生命周期关系图：
+```
+Application
+  └── SingletonComponent (@Singleton)
+        └── ActivityRetainedComponent (@ActivityRetainedScoped)
+              └── ViewModelComponent (@ViewModelScoped)
+        └── ActivityComponent (@ActivityScoped)
+              └── FragmentComponent (@FragmentScoped)
+                    └── ViewComponent (@ViewScoped)
+        └── ServiceComponent (@ServiceScoped)
+``` 
+
+@Scoped和@InstallIn组合使用
+
+```kotlin
+@Module
+@InstallIn(ActivityComponent::class) // 表明
+object MyActivityModule {
+
+    @Provides
+    @ActivityScoped
+    fun provideMyHelper(context: Context): MyHelper {
+        return MyHelper(context)
+    }
+}
+
+```
+
+## Hilt 提供的作用域是线程安全的吗？  
+
+Hilt 提供的作用域本身是线程安全的，但你注入的类并不一定线程安全！
+
+Hilt（基于 Dagger）在管理依赖的生命周期和实例缓存时，内部使用了线程安全的机制，确保：
+
+- 多线程并发请求某个作用域内的依赖时，不会创建多个实例（懒加载 + 并发保障）  
+- 实例创建是原子性的（典型实现是双重检查锁 DCL）   
+
+```kotlin
+@Singleton
+class MyCache @Inject constructor() {
+    val map = mutableMapOf<String, String>()  // ❗️非线程安全
+}
+```
+
+这里的MyCache是线程安全的，多线程访问能够保证原子性，但是MyCache.map自身并不是线程安全的   
+
+
+# 🧰 三、模块与绑定相关问题  
+
 ## Hilt 中的 Module 是什么？为什么需要它？
 
 ## @InstallIn 注解的作用是什么？必须要指定安装在哪个 Component 吗？
