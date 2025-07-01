@@ -6,9 +6,10 @@ Android 广播范围两个角色：广播发送者、广播接受者
 
 ## 1.1 静态广播
 
-静态广播接收者：通过AndroidManifest.xml的标签来申明的BroadcastReceiver  
+静态广播接收者：通过`AndroidManifest.xml`的标签来申明的`BroadcastReceiver`  
 
-1. 创建Receiver类
+1. 创建`Receiver`类  
+
 ```java
 public class MyReceiver extends BroadcastReceiver {
     @Override
@@ -24,7 +25,8 @@ public class MyReceiver extends BroadcastReceiver {
 }
 
 ```
-2. xml声明`<receiver>`标签
+2. `xml`声明`<receiver>`标签
+
 ```xml
 <receiver
     android:name=".MyReceiver"
@@ -42,11 +44,11 @@ public class MyReceiver extends BroadcastReceiver {
 
 ## 1.2 动态广播
 
-通过AMS.registerReceiver方式注册的BroadReceiver, 动态注册更为灵活，可在不需要是通过unregisterReceiver取消注册  
+通过`AMS.registerReceiver`方式注册的`BroadReceiver`, 动态注册更为灵活，可在不需要是通过`unregisterReceiver`取消注册  
 
-与静态广播不同的是，动态广播一定与Activity或Service绑定，组件销毁时需要手动解绑，不然会内存泄漏  
+与静态广播不同的是，动态广播一定与`Activity`或`Service`绑定，组件销毁时需要手动解绑，不然会内存泄漏  
 
-1. 创建Receiver类（与静态广播相同） 
+1. 创建`Receiver`类（与静态广播相同） 
 
 ```java
 public class MyReceiver extends BroadcastReceiver {
@@ -92,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
 ```
 
 3. 发送广播  
+
 ```java
 // 所有注册了 com.example.MY_CUSTOM_ACTION Receiver都能接收
 Intent intent = new Intent("com.example.MY_CUSTOM_ACTION");
@@ -121,11 +124,14 @@ sendBroadcast(intent);
 - `signatureOrSystem`：只有系统应用或使用相同签名的应用才能获得该权限。  
 
 发送指定权限
+
 ```java
 Intent intent = new Intent("com.example.MY_CUSTOM_ACTION");
 sendBroadcast(intent, "com.example.MY_CUSTOM_PERMISSION");
 ```
+
 接收指定权限  
+
 ```java
 // 动态注册
 IntentFilter filter = new IntentFilter("com.example.MY_CUSTOM_ACTION");
@@ -146,33 +152,33 @@ registerReceiver(receiver, filter, "com.example.MY_CUSTOM_PERMISSION", null);
 
 ## 3.1 静态注册  
 
-静态注册是通过AndroidManifest文件中声明了BroadcastReceiver的自定义类和对应的IntentFilter，来告诉PackageManagerService（PMS）这个App注册了静态广播  
+静态注册是通过`AndroidManifest`文件中声明了`BroadcastReceiver`的自定义类和对应的`IntentFilter`，来告诉`PackageManagerService（PMS）`这个`App`注册了静态广播  
 
 当AMS接收到广播后，会查找所有动态注册和静态注册的广播接收器，静态注册的广播接收器是通过PMS发现的，PMS找到对应的App  
 
-如果App进程已经创建，那么直接调用App的ApplicationThread.scheduleReceiver  
+如果 `App` 进程已经创建，那么直接调用 `App` 的 `ApplicationThread.scheduleReceiver`  
 
-如果App进程尚未创建，先启动App进程，App进程启动后回调AMS.attachApplication,该方法继续派发刚才的广播，App这边收到的调用后，会先通过Handler转到主线程，然后根据AMS传过来的参数实例化App对应的Receiver，然后回调onReceive方法  
+如果 `App` 进程尚未创建，先启动 `App` 进程，`App` 进程启动后回调 `AMS.attachApplication`，该方法继续派发刚才的广播，`App` 这边收到调用后，会先通过 `Handler` 转到主线程，然后根据 `AMS` 传过来的参数实例化 `App` 对应的 `Receiver`，然后回调 `onReceive` 方法  
 
 ## 3.2 动态注册  
 
-1. 创建对象LoadedApk.ReceiverDispatcher.InnerReceiver实例，该对象继承于IIntentReceiver.Stub(InnerReceiver实际是一个Binder本地对象)  
+1. 创建对象 `LoadedApk.ReceiverDispatcher.InnerReceiver` 实例，该对象继承于 `IIntentReceiver.Stub`（`InnerReceiver` 实际是一个 `Binder` 本地对象）  
 
-2. 将IIntentReceiver对象和注册广播时所传递的IntentFilter对象发送给AMS，AMS记录IIntentReceiver、IntentFilter和注册的进程ProcessRecord，并建立他们的对应关系  
+2. 将 `IIntentReceiver` 对象和注册广播时所传递的 `IntentFilter` 对象发送给 `AMS`，`AMS` 记录 `IIntentReceiver`、`IntentFilter` 和注册的进程 `ProcessRecord`，并建立它们的对应关系  
 
-3. 当广播发出时，AMS根据广播intent所携带的IntentFilter找到对应的IIntentReceiver和ProcessRecord，然后回调App的ApplicationThread对象的scheduleRegisteredReceiver，将IIntentReceiver和广播intent一起传给App，App直接调用IIntentReceiver的performReceiver  
+3. 当广播发出时，`AMS` 根据广播 `intent` 所携带的 `IntentFilter` 找到对应的 `IIntentReceiver` 和 `ProcessRecord`，然后回调 `App` 的 `ApplicationThread` 对象的 `scheduleRegisteredReceiver`，将 `IIntentReceiver` 和广播 `intent` 一起传给 `App`，`App` 直接调用 `IIntentReceiver` 的 `performReceiver`  
 
-4. 广播通过Binder线程回调到接收进程，接收进程通过ActivityThread里的Handler切换回主线程，然后回调BroadcastReceiver的onReceive方法  
+4. 广播通过 `Binder` 线程回调到接收进程，接收进程通过 `ActivityThread` 里的 `Handler` 切换回主线程，然后回调 `BroadcastReceiver` 的 `onReceive` 方法  
 
 # 4 本地广播和全局广播的区别
 
-BroadcastReceiver是针对应用间、应用与系统、应用内部进行通信的一种方式    
+`BroadcastReceiver` 是针对应用间、应用与系统、应用内部进行通信的一种方式    
 
-LocalBroadcastReceiver仅在自己的应用内发送接收广播，也就是自由自己的应用能收到，数据更加安全广播在这个程序里，更加高效  
+`LocalBroadcastReceiver` 仅在自己的应用内发送接收广播，也就是只有自己的应用能收到，数据更加安全，广播在这个程序里，更加高效  
 
-BoradcastReceiver基于Binder进行IPC通信  
+`BroadcastReceiver` 基于 `Binder` 进行 `IPC` 通信  
 
-LocalBroadcastReceiver基于Handler通信机制  
+`LocalBroadcastReceiver` 基于 `Handler` 通信机制  
 
-LocalBroadcastReceiver不能够静态注册、只能采用动态注册的方式
+`LocalBroadcastReceiver` 不能够静态注册、只能采用动态注册的方式
 

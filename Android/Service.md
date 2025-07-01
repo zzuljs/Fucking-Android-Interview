@@ -11,6 +11,8 @@
 
 # 1 `Service`的生命周期、两种启动方式的区别
 
+## 1.1 生命周期
+
 `startService`和`bindService`最大的区别就是前者独立运行，后者绑定组件（一般是`Activity`，但也可以是`Fragment`、`Application`）
 
 - **`startService`**  
@@ -19,7 +21,7 @@
 - **`bindService`**  
 `onCreate`->`onBind`->`onUnbind`->`onDestroy`  
 
-## 1.1 两种方式区别
+## 1.2 两种方式区别
 
 `startService`
 
@@ -33,14 +35,14 @@
 
 当执行`stopService`时，直接调用`onDestroy`  
 
-调用者主动调用`unbindService`，后者调用者的`Content`不存在（如`Activity`被`finish`），`Service`就会调用`onUnbind`->`onDestroy`  
+调用者主动调用`unbindService`，或者调用者的`Context`不存在（如`Activity`被`finish`），`Service`就会调用`onUnbind`->`onDestroy`  
 使用`startService`方法启用服务，调用者与服务之间没有关联，即使调用者被回收，服务仍然运行  
 
 使用`bindService`方法启用服务，调用者和服务之间是绑定的，调用者退出，服务也会终止   
 
 # 2 `Service`启动流程  
 
-# 2.1 `startService`流程  
+## 2.1 `startService`流程  
 
 ![Service启动流程图](./../images/Service启动流程图.png)
 
@@ -50,18 +52,18 @@
 4. `App`进程，通过`Binder IPC`向`system_server`进程发起`attachApplication`请求  
 5. `system_server`进程在收到请求后，进行一系列准备工作后，再通过`Binder IPC`向`App`进程发起`scheduleCreateService`请求  
 6. `App`进程的`Binder`线程接收到请求后，通过`Handler`向主线程发送`CREATE_SERVICE`消息  
-7. 主线程在收到`Message`后，通过发射机制创建目标`Service`，并回调`Service.onCreate`方法  
+7. 主线程在收到`Message`后，通过反射机制创建目标`Service`，并回调`Service.onCreate`方法  
 
 如果`App`进程已经存在，那么跳过2、3步骤
 
-# 2.2 `bindService`流程
+## 2.2 `bindService`流程
 
 1. `Process` `A`进程发起`bindService`请求，`ContextImpl.bindService`接口被调用，通过`Binder IPC`向`system_server`进程发起请求  
 2. `system_server`进程中的`AMS`收到请求，解析`Intent`数据，先判断是否有权限（没有权限直接抛出异常），然后通过`Process.start`向`Zygote`进程发起创建进程请求  
 3. `Zygote`接收到请求后，`fork`子进程，执行`ActivityThread.main`作为`App`进程入口，以下是`App`进程初始化流程：  
-- 创建`ActivityThread`:`App`主线程初始化，创建`ApplicationThread`，并注册到`AMS`  
+- 创建`ActivityThread`：`App`主线程初始化，创建`ApplicationThread`，并注册到`AMS`  
 - 绑定到`AMS`：通过`IActivityManager.attachApplication`通知`AMS`进程已启动  
-- `AMS`回调：`AMS`收到`attachApplication`后，完成进程`App`进程初始化
+- `AMS`回调：`AMS`收到`attachApplication`后，完成`App`进程初始化
 4. `AMS`通过`IApplicationThread.scheduleBindService`，通知`Process` `A`绑定`Service`，`A`的处理逻辑：  
 - 创建`Service`实例，通过反射调用目标`Service`构造函数，执行`Service.onCreate`  
 - 调用`onBind`，并返回`Service.onBind`，返回`IBinder`对象，用于`IPC`  
@@ -155,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-## 3.2 通过`BroadCast`广播与`Activity`通信  
+## 3.2 通过`Broadcast`广播与`Activity`通信  
 
 (不推荐) `Activity`注册动态广播`BroadcastReceiver`，`Service`直接调用`sendBroadcast`即可  
 
@@ -203,7 +205,7 @@ context.startService(serviceIntent);
 
 重传`Intent`，使用这个返回值时，如果在执行完`onStartCommand`后，服务被异常`kill`，系统会自动重启该服务，并且`onStartCommand`方法会执行，`onStartCommand`方法中的`intent`为`null`
 
-3. `START_REDELIVER_INTEN`  
+3. `START_REDELIVER_INTENT`  
 
 使用这个返回值时，服务被异常`kill`时，系统会自动开启服务，并将`Intent`的值传入  
 适用于主动执行应该恢复的作业（如下载文件）

@@ -273,5 +273,3 @@ public boolean onTouchEvent(MotionEvent event) {
     return super.onTouchEvent(event);
 }
 ```
-}
-```

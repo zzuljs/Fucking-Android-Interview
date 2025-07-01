@@ -74,15 +74,15 @@ onSaveInstanceState常用于保存UI临时状态，比如输入框内容、滚�
 注意：仅当onSaveInstanceState非空才调用onRestoreInstanceState，因此，onRestoreInstanceState被调用，onSaveInstanceState一定会被调用
 3. 源码  
 
-系统会调用ActivityThread的preformStopActivity方法中调用onSaveInstanceState，将状态保存在mActivities中，mActivities维护了Activity信息表，当Activity重启时，先从mActivities查询到对应的ActivityClientRecord，
+系统会调用ActivityThread的performStopActivity方法中调用onSaveInstanceState，将状态保存在mActivities中，mActivities维护了Activity信息表，当Activity重启时，先从mActivities查询到对应的ActivityClientRecord，
 如果有信息，则调用Activity的onRestoreInstanceState方法，
 在ActivityThread的performLaunchActivity方法中，会判断ActivityClientRecord对象state是否为空
-不为空，通过Activity的onSaveInstanceState获取其UI状态信息，通过这些信息传递给onCreate方法
+不为空，通过Activity的onRestoreInstanceState获取其UI状态信息，通过这些信息传递给onCreate方法
 
 4. onCreate与onRestoreInstanceState两者都可以用于恢复状态：  
 
-- onCreate(Bundle savedInstanceState) 在 Activity 创建 时调用，可用于恢复状态。
-- onRestoreInstanceState(Bundle savedInstanceState) 仅在 onSaveInstanceState() 发生后 才调用。
+- onCreate(Bundle savedInstanceState) 在 Activity 创建时调用，可用于恢复状态。
+- onRestoreInstanceState(Bundle savedInstanceState) 仅在 onSaveInstanceState() 发生后才调用。
 
 # 3 Activity的启动模式（Launch Mode）和使用场景
 
@@ -90,7 +90,7 @@ onSaveInstanceState常用于保存UI临时状态，比如输入框内容、滚�
 
 我们每次打开一个新的Activity，或者退出当前的Activity，都会在一个称为任务栈的结构中增减Activity，一个任务栈包含一组Activity集合，  
 
-Android通过ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervisor、ProcessRecord有序的管理每个Activity
+Android通过ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervisor、ProcessRecord有序地管理每个Activity
 
 ## 3.2 Standard
 
