@@ -117,7 +117,6 @@ Kotlin空安全会引入运行时开销，但可以忽略不计。
 * 是的，用 `inner class` 表示可访问外部类属性，默认为 static nested class
 
 ## 10 Kotlin 是否支持方法重载（函数重载）？
-## 10 Kotlin 是否支持方法重载（函数重载）？
 
 * 是的，支持同名方法持有不同参数（类型/长度）的 overload
 
@@ -126,16 +125,11 @@ Kotlin空安全会引入运行时开销，但可以忽略不计。
 Kotlin逆变、协变是泛型编程概念，定义了父类和子类之间两种不同的类型替换。
 协变：关键字 `out`，通配符 `? extends`，表示子类可以替代父类类型，仅用于读的场景，例如：
 
-Kotlin逆变、协变是泛型编程概念，定义了父类和子类之间两种不同的类型替换。
-协变：关键字 `out`，通配符 `? extends`，表示子类可以替代父类类型，仅用于读的场景，例如：
 
 ```kotlin
 class Animal
 class Cat: Animal
-class Cat: Animal
 
-fun println(data: List<out Animal>) {
-    for(e in data) {
 fun println(data: List<out Animal>) {
     for(e in data) {
         println(e)
@@ -149,11 +143,8 @@ println(data)
 常用场景：返回一个只读集合
 
 逆变：关键字 `in`，通配符 `? super`，表示父类可以替换子类类型，仅用于写的场景，例如：
-逆变：关键字 `in`，通配符 `? super`，表示父类可以替换子类类型，仅用于写的场景，例如：
-
 ```kotlin
 class Event
-class ButtonEvent: Event
 class ButtonEvent: Event
 
 fun callback(e:List<in ButtonEvent>){
@@ -165,16 +156,13 @@ callback(buttonEvent)
 ```
 
 常用场景：事件监听、Comparator比较器
-常用场景：事件监听、Comparator比较器
 
 ## 12 为什么协变限制写入，逆变限制读取
 
 保证类型安全，对于协变，如果不限制写入，有可能导致类型不确定，比如：
-保证类型安全，对于协变，如果不限制写入，有可能导致类型不确定，比如：
 
 ```kotlin
 val list = listOf<Cat>()
-fun feedAnimal(a: List<out Animal>) {
 fun feedAnimal(a: List<out Animal>) {
     a.add(Dog()) // error
 }
