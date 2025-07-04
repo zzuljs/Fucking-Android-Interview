@@ -161,13 +161,13 @@ Message内部持有一个静态Message和私有成员next，
 当有新的Message对象通过MessageQueue进入队列时，静态变量指向自身，next指向上一个Message对象，组成一个单链表，链表最大size限制50  
 
 # 6 Handler有哪些发送消息的方法  
-
+```java
 sendMessage(Message msg)
 sendMessageDelayed(Message msg, long uptimeMillis)
 sendMessageAtTime(Message msg,long when)
 post(Runnable r)
 postDelayed(Runnable r, long uptimeMillis)
-
+```
 # 7 Handler的post与sendMessage区别和应用场景  
 
 post传递的是Runnable对象，虽然内部还是封装成一个Message，但是无需关心Message传递和处理过程，适合单一线程回调场景  
