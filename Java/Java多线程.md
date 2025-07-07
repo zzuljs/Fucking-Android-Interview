@@ -361,3 +361,158 @@ notify，随机唤醒队列中的一个WAITING线程
 3. 使用java.util.concurrent中线程安全的集合类  
 4. 使用ThreadLocal管理变量  
 5. 使用原子类（Atomic）
+
+
+# 12 什么是锁升级
+
+synchronized底层实现依赖对象头中的Mark Word和JVM监视器（Monitor）锁机制，JVM对锁的获取和释放设计了多种状态，在竞争激烈程度不同的情况下使用不同的锁，这就是锁升级，注意，锁只能升级，不能降级    
+
+1. 无锁  
+
+默认状态，此时没有线程使用锁  
+
+2. 偏向锁  
+
+第一次线程访问synchronized代码块，会将对象的锁记录偏向当前线程  
+
+如果后续没有其他线程竞争，那么无需升级，否则继续升级  
+
+3. 轻量级锁  
+
+多个线程交替使用锁（无真正并发），适合线程交替执行的场景  
+
+4. 重量级锁  
+
+多个线程并发产生竞争，触发OS级别的Monitor机制，线程会被阻塞，性能较低  
+
+# 13 ReentrantLock  
+
+ReentrantLock常见用法：中断锁（interruptible lock）、定时锁（timed lock） 和 公平锁（fair lock）
+
+
+1. 中断锁  
+
+中断锁允许一个线程在等待锁的过程中被中断，避免死等  
+
+synchronized 是不可中断的，如果线程在等待锁，只能无限等下去。而 ReentrantLock.lockInterruptibly() 支持中断  
+
+```java
+ReentrantLock lock = new ReentrantLock();
+
+Thread t1 = new Thread(() -> {
+    try {
+        lock.lockInterruptibly(); // 可中断加锁
+        System.out.println("Thread1 获得锁");
+        Thread.sleep(10000); // 模拟耗时
+    } catch (InterruptedException e) {
+        System.out.println("Thread1 被中断");
+    } finally {
+        if (lock.isHeldByCurrentThread()) lock.unlock();
+    }
+});
+
+Thread t2 = new Thread(() -> {
+    try {
+        Thread.sleep(1000); // 等t1先拿锁
+        lock.lockInterruptibly(); // 等待锁可中断
+        System.out.println("Thread2 获得锁");
+    } catch (InterruptedException e) {
+        System.out.println("Thread2 在等待锁时被中断");
+    }
+});
+
+t1.start();
+t2.start();
+
+Thread.sleep(3000); // 等待一会后打断 t2
+t2.interrupt();
+
+
+//执行结果
+Thread1 获得锁
+Thread2 在等待锁时被中断
+
+```
+
+
+2. 定时锁  
+
+指定时间尝试获取锁，如果超时未获得，就放弃  
+
+synchronized 是“等到天荒地老”，而 ReentrantLock.tryLock(timeout) 可以设置时间  
+
+```java
+ReentrantLock lock = new ReentrantLock();
+
+Thread t1 = new Thread(() -> {
+    lock.lock();
+    try {
+        System.out.println("Thread1 获得锁，睡眠5秒");
+        Thread.sleep(5000);
+    } catch (InterruptedException ignored) {
+    } finally {
+        lock.unlock();
+    }
+});
+
+Thread t2 = new Thread(() -> {
+    try {
+        System.out.println("Thread2 尝试获取锁，最多等2秒");
+        if (lock.tryLock(2, TimeUnit.SECONDS)) {
+            System.out.println("Thread2 获得锁");
+            lock.unlock();
+        } else {
+            System.out.println("Thread2 获取锁超时，放弃");
+        }
+    } catch (InterruptedException ignored) {
+    }
+});
+
+t1.start();
+Thread.sleep(100); // 先启动 t1 拿锁
+t2.start();
+
+
+// 执行结果
+Thread1 获得锁，睡眠5秒
+Thread2 尝试获取锁，最多等2秒
+Thread2 获取锁超时，放弃
+```
+
+
+3. 公平锁  
+
+公平锁保证先等待的线程先获得锁（FIFO），避免“插队”  
+
+synchronized 和 ReentrantLock 默认是非公平的，可能后来的线程直接抢锁成功  
+
+ReentrantLock 提供构造参数 new ReentrantLock(true) 实现公平锁  
+
+```java
+ReentrantLock fairLock = new ReentrantLock(true); // 公平锁
+
+Runnable task = () -> {
+    String name = Thread.currentThread().getName();
+    fairLock.lock();
+    try {
+        System.out.println(name + " 获得锁");
+        Thread.sleep(500);
+    } catch (InterruptedException ignored) {
+    } finally {
+        fairLock.unlock();
+    }
+};
+
+for (int i = 0; i < 5; i++) {
+    new Thread(task, "线程" + i).start();
+}
+
+
+// 执行结果
+线程0 获得锁
+线程1 获得锁
+线程2 获得锁
+线程3 获得锁
+线程4 获得锁
+
+```
