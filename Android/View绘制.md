@@ -158,7 +158,7 @@ public void draw(Canvas canvas) {
 |                   | `match_parent`      | `UNSPECIFIED` + 父可用空间           | 子View尺寸无限制（如滚动布局测量子View） |
 |                   | `wrap_content`      | `UNSPECIFIED` + 父可用空间           | 子View尺寸无限制（如滚动布局测量子View） |
 
-# 4 自定义`View`,`wrap_content`不起作用的原因  
+# 4 自定义`View.wrap_content`不起作用的原因  
 
 1. 未能正确处理`onMeasure`中的`AT_MOST`模式  
 当子`View`的`LayoutParams`为`wrap_content`时，父`View`的`MeasureSpec=AT_MOST`时，此时，如果不做处理，子`View`会直接占满父`View`
