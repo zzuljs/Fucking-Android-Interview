@@ -424,7 +424,7 @@ Message next() {
 
 # 14 子线程能不能更新UI  
 
-这是Android规定的机制，所有UI操作最终都会触发`ViewRootImpl.checkThread`方法，如果不是主线程，会直接抛出`CalledFromWrongTheadException`异常，报错信息 `Only the original thread that created a view hierarchy can touch its views`
+这是Android规定的机制，所有UI操作最终都会触发`ViewRootImpl.checkThread`方法，如果不是主线程，会直接抛出`CalledFromWrongThreadException`异常，报错信息 `Only the original thread that created a view hierarchy can touch its views`
 
 # 15 为什么Android系统不建议子线程访问UI
 
