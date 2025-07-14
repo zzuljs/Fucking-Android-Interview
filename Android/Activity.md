@@ -97,7 +97,7 @@ Android通过ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervis
 默认模式，每次启动Activity都会创建一个新的Activity实例  
 适用场景：可以重复打开，无需复用的页面，如详情页
 
-## 3.3 SingleTop
+## 3.3 
 
 栈顶复用模式，若目标Activity存在栈顶，直接复用，调用该Activity.onNewIntent方法，如果目标Activity不存在栈顶，重建实例  
 
@@ -123,7 +123,7 @@ Android通过ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervis
 |---|-------|
 |FLAG_ACTIVITY_NEW_TASK	|在新任务栈中启动 Activity（需与 singleTask 或 taskAffinity 配合）|
 |FLAG_ACTIVITY_CLEAR_TOP|若目标 Activity 已存在，清除其上的所有 Activity|
-|FLAG_ACTIVITY_SINGLE_TOP|效果等同 singleTop 模式|
+|FLAG_ACTIVITY_SINGLE_TOP|效果等同  模式|
 
 # 4 Activity A跳转Activity B，再按返回键，生命周期执行顺序  
 
@@ -135,7 +135,35 @@ B再按下back键：B.onPause->A.onRestart->A.onStart->A.onResume->B.onStop->B.o
 
 A.onPause->B.onNewIntent->B.onRestart->B.onStart->B.onResume->A.onStop->(A被移除的话)A.onDestroy  
 
-当B的launchMode是singleTop且已经在栈顶，此时:  
+```
+B生命周期回调：
++----------------+
+|  Activity B    |
+|  (已存在且栈顶) |
++----------------+
+        |
+        V
++----------------+
+| onNewIntent()  |  <-- 接收新的 Intent
++----------------+
+        |
+        V
++----------------+  (可选)
+|   onRestart()  |  <-- 如果之前处于 onStop() 状态
++----------------+
+        |
+        V
++----------------+
+|    onStart()   |
++----------------+
+        |
+        V
++----------------+
+|    onResume()  |  <-- Activity B 重新处于活跃可交互状态
++----------------+
+```
+
+当B的launchMode是且已经在栈顶，此时:  
 B.onPause->B.onNewIntent->B.onResume  
 
 # 5 横竖屏切换、HOME键、返回键、锁屏与解锁，跳转透明Activity，启动一个Theme为Dialog的Activity，弹出Dialog的Activity生命周期
@@ -210,7 +238,7 @@ Binder 通信过程：
 
 onNewIntent是复用Activity实例时处理新Intent的核心方法，适用于需要动态更新界面或避免重复创建的场景，调用时机：  
 
-1. Activity的LaunchMode为SingleTop时，如果Activity在栈顶，且现在要启动Activity，此时调用onNewIntent
+1. Activity的LaunchMode为时，如果Activity在栈顶，且现在要启动Activity，此时调用onNewIntent
 2. Activity的LaunchMode为SingleInstance、SingleTask时，如果Activity已经在堆栈中，此时调用onNewIntent  
 3. Activity处于任务栈顶端，现在处于onPause、onStop状态，其他应用发送Intent，执行顺序为：onNewIntent->onReStart->onStart->onResume
 
@@ -422,7 +450,7 @@ Activity的生命周期阻塞并不在触发ANR场景里，并不会直接造成
 # 16 有哪些Activity常用的标记位Flags  
 
 1. `FLAG_ACTIVITY_NEW_TASK` 指定Activity启动模式为`singleTask`，效果与AndroidManifest中指定`launchMode = "singleTask"`相同
-2. `FLAG_ACTIVITY_SINGLE_TOP` 指定Activity启动模式为`singleTop`, 效果与AndroidManifest中指定`launchMode = "singleTop"`相同
+2. `FLAG_ACTIVITY_SINGLE_TOP` 指定Activity启动模式为``, 效果与AndroidManifest中指定`launchMode = ""`相同
 3. `FLAG_ACTIVITY_CLEAR_TOP` Activity启动时，会将栈中位于它上方的Activity全部清除，一般和singleTask一起使用，如果被启动的Activity实例存在，那么会触发onNewIntent
 
 # 17 Activity被回收之后，onSaveInstanceState与onRestoreInstance调用流程是怎样的？  
@@ -484,4 +512,106 @@ onCreate和onRestoreInstanceState都能恢复数据，但是onCreate调用时，
 
 onCreate除了在异常重建时调用，还会在正常Activity启动时调用，习惯上，onCreate更适合做业务逻辑初始化，onRestoreInstanceState只会在saveInstanceState不为空时调用，更适合做恢复  
 
-此外，onCreate发生在Activity启动不可见时，如果业务逻辑过于复杂，容易造成ANR，体验更糟糕
+此外，onCreate发生在Activity启动不可见时，如果业务逻辑过于复杂，容易造成ANR，体验更糟糕  
+
+
+# 18 如果Activity A跳转B，如何确保B.onResume的时候拿到A的数据  
+
+## 方法1：使用Intent  
+
+如果B是Standard模式，那么直接在Intent中塞数据，在B.onCreate取数据，onResume中用即可  
+
+如果B是SingleTop/SingleTask，且已存在的实例，那么在B.onNewIntent取数据，onResume中使用即可  
+
+如果B实例已存在，A通过back键销毁，回退到B，那么此时考虑使用A.setResult+B.registerForActivityResult  
+
+
+## 方法2：使用ViewModel+LiveData  
+
+通常ViewModel与Activity生命周期绑定，这里是个跨Activity场景，可以考虑ViewModel与Application绑定，手动管理VM生命周期  
+
+```kotlin
+
+// SharedAppViewModel.kt
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.MutableLiveData
+
+class SharedAppViewModel(application: Application) : AndroidViewModel(application) {
+    val dataFromA: MutableLiveData<String> = MutableLiveData()
+
+    override fun onCleared() {
+        super.onCleared()
+        // 当 Application 进程被杀死时，此方法才会被调用
+        Log.d("SharedAppViewModel", "SharedAppViewModel cleared!")
+    }
+}
+
+
+// ActivityA.kt
+class ActivityA : AppCompatActivity() {
+
+    private lateinit var sharedAppViewModel: SharedAppViewModel
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_a)
+
+        // 获取 Application 作用域的 ViewModel
+        sharedAppViewModel = ViewModelProvider(this.applicationContext as ViewModelStoreOwner).get(SharedAppViewModel::class.java)
+        // 注意：直接使用 this.application 会报错，因为 Application 不是 ViewModelStoreOwner
+        // 通常需要一个自定义的 ViewModelProvider.Factory 来提供 Application 实例
+        // 更常见的做法是：
+        // sharedAppViewModel = ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory.getInstance(application)).get(SharedAppViewModel::class.java)
+
+        // 推荐使用以下更简洁的方式，但需要确保你的 Application 类继承了 Application
+        // 并且在 Manifest 中配置了自定义的 Application 类
+        // 假设你的 Application 类是 MyApp
+        // val app = application as MyApp
+        // sharedAppViewModel = ViewModelProvider(this, MyApp.AppViewModelFactory(app)).get(SharedAppViewModel::class.java)
+        // 或者更简单地，如果不需要 Application Context，直接使用 ViewModelProvider(applicationContext as ViewModelStoreOwner).get(...)
+        // 但这需要 applicationContext 实现了 ViewModelStoreOwner 接口，通常 Application 类需要实现这个接口
+        // 实际开发中，更推荐的获取 Application 作用域 ViewModel 的方式是：
+
+        sharedAppViewModel = ViewModelProvider(
+            this.application, // 传入 Application 对象作为 ViewModelStoreOwner
+            ViewModelProvider.AndroidViewModelFactory.getInstance(this.application)
+        ).get(SharedAppViewModel::class.java)
+
+
+        findViewById<Button>(R.id.button_start_b).setOnClickListener {
+            val dataToPass = "Hello from Activity A (Application Scoped)!"
+            sharedAppViewModel.dataFromA.value = dataToPass // 更新数据
+            val intent = Intent(this, ActivityB::class.java)
+            startActivity(intent)
+        }
+    }
+}
+
+// ActivityB.kt
+class ActivityB : AppCompatActivity() {
+
+    private lateinit var sharedAppViewModel: SharedAppViewModel
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_b)
+
+        // 获取 Application 作用域的 ViewModel
+        sharedAppViewModel = ViewModelProvider(
+            this.application, // 传入 Application 对象作为 ViewModelStoreOwner
+            ViewModelProvider.AndroidViewModelFactory.getInstance(this.application)
+        ).get(SharedAppViewModel::class.java)
+
+        sharedAppViewModel.dataFromA.observe(this) { data ->
+            Log.d("ActivityB", "Received data in B (Application Scoped): $data")
+            // 即使 Activity A 已经被销毁，只要 ViewModel 还在，B 就能收到数据
+        }
+    }
+}
+
+```
+
+## 方法3：使用EventBus  
+
+事件订阅机制，非常灵活，自定义一个方法@Subscribe即可
