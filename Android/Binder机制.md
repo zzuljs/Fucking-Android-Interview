@@ -159,3 +159,30 @@ Binder传输最大限制取决于Binder事物缓冲区大小，默认上限是10
 
 
 # 18 不通过AIDL，手动编码来实现Binder通信  
+
+# 19 AIDL是否会导致Exception传递  
+
+所有通过AIDL调用的方法都可能抛出`RemoteException`，这是一个受检查的异常，必须在接口方法中声明：
+- Binder被杀  
+- 跨进程传输Exception，比如数据过大 BinderTransactionFailed  
+- 服务未连接就调用  
+
+也可以主动传递自定义异常，需要实现`Parcelable`接口，并在AIDL文件中声明（本质上讲，传递了一个持久化对象）  
+```java
+// MyCustomException.aidl
+package com.example.aidl;
+
+parcelable MyCustomException;
+
+// IRemoteService.aidl
+package com.example.aidl;
+
+import com.example.aidl.MyCustomException;
+
+interface IRemoteService {
+    // 注意不能 throw Exception，异常用返回值表达
+    MyCustomException doRiskyOperation();
+}
+```  
+
+而客户端或者服务端自己发生的异常，比如NullPointerException，一般是不会传递，一端调用发生异常不会带崩另一端  

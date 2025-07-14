@@ -516,3 +516,51 @@ for (int i = 0; i < 5; i++) {
 线程4 获得锁
 
 ```
+
+
+# 14 线程池的几个核心参数  
+
+```java
+public ThreadPoolExecutor(
+    int corePoolSize,               // 核心线程数
+    int maximumPoolSize,            // 最大线程数
+    long keepAliveTime,             // 非核心线程空闲存活时间
+    TimeUnit unit,                  // keepAliveTime 的时间单位
+    BlockingQueue<Runnable> workQueue, // 等待队列
+    ThreadFactory threadFactory,    // 线程工厂
+    RejectedExecutionHandler handler // 拒绝策略
+)
+```
+
+
+| 参数名               | 类型                       | 说明                           |
+| ----------------- | ------------------------ | ---------------------------- |
+| `corePoolSize`    | int                      | 核心线程数（即使空闲也不会被回收）            |
+| `maximumPoolSize` | int                      | 最大线程数（含核心+非核心）               |
+| `keepAliveTime`   | long                     | 非核心线程在无任务时保持存活的时间            |
+| `unit`            | TimeUnit                 | `keepAliveTime` 的时间单位，如秒、毫秒等 |
+| `workQueue`       | BlockingQueue\<Runnable> | 任务等待队列，缓存未执行的任务              |
+| `threadFactory`   | ThreadFactory            | 线程创建工厂，用于自定义线程名称、优先级等        |
+| `handler`         | RejectedExecutionHandler | 任务无法执行时的拒绝策略                 |
+
+
+常见任务队列`BlockingQueue`  
+
+| 队列类型 | 类名                      | 特点           |
+| ---- | ----------------------- | ------------ |
+| 有界队列 | `ArrayBlockingQueue`    | 固定容量，先进先出    |
+| 无界队列 | `LinkedBlockingQueue`   | 理论无限大（容易OOM） |
+| 直接提交 | `SynchronousQueue`      | 不存储任务，直接交给线程 |
+| 优先队列 | `PriorityBlockingQueue` | 可按优先级调度任务    |
+
+常见拒绝策略`RejectedExecutionHandler`  
+
+| 策略类                   | 行为                                 |
+| --------------------- | ---------------------------------- |
+| `AbortPolicy`（默认）     | 抛出 `RejectedExecutionException` 异常 |
+| `CallerRunsPolicy`    | 调用线程直接执行该任务                        |
+| `DiscardPolicy`       | 直接丢弃任务，不报错                         |
+| `DiscardOldestPolicy` | 丢弃队列中最旧的任务，然后重试提交当前任务              |
+
+
+扩展问题：线程池的工作原理、线程复用机制、任务调度细节、线程泄漏风险等，我可以为你详细展开
