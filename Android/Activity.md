@@ -97,7 +97,7 @@ Android通过ActivityRecord、TaskRecord、ActivityStack、ActivityStackSupervis
 默认模式，每次启动Activity都会创建一个新的Activity实例  
 适用场景：可以重复打开，无需复用的页面，如详情页
 
-## 3.3 
+## 3.3 SingleTop
 
 栈顶复用模式，若目标Activity存在栈顶，直接复用，调用该Activity.onNewIntent方法，如果目标Activity不存在栈顶，重建实例  
 
@@ -611,7 +611,3 @@ class ActivityB : AppCompatActivity() {
 }
 
 ```
-
-## 方法3：使用EventBus  
-
-事件订阅机制，非常灵活，自定义一个方法@Subscribe即可
