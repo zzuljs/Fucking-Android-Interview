@@ -158,7 +158,196 @@ Binder传输最大限制取决于Binder事物缓冲区大小，默认上限是10
 5. Activity拿到回调后，通过Binder Stub的asInterface方法将Binder转换为代理Proxy，完成业务代理的转换，之后就能利用Proxy进行通信了  
 
 
-# 18 不通过AIDL，手动编码来实现Binder通信  
+# 18 不通过AIDL，手动编码来实现Binder通信 
+
+核心代码：  
+- 接口通过`IInterface`实现  
+- 服务端通过`Stub`继承Binder实现onTransact方法  
+- 客户端通过`Proxy`封装`transact`和`Parcel`  
+- 所有通信对象必须是`Parcelable`，跨进程通信的时候会进行序列化和反序列化  
+
+1. IBookManager.java定义  
+
+注意，这个代码需要在服务端和客户端都有，且一模一样  
+
+```java
+public interface IBookManager extends IInterface {
+    static final String DESCRIPTOR = "com.example.IBookManager";
+    static final int TRANSACTION_getBookList = IBinder.FIRST_CALL_TRANSACTION + 0;
+    static final int TRANSACTION_addBook = IBinder.FIRST_CALL_TRANSACTION + 1;
+
+    List<Book> getBookList() throws RemoteException;
+    void addBook(Book book) throws RemoteException;
+
+    abstract class Stub extends Binder implements IBookManager {
+        public Stub() {
+            this.attachInterface(this, DESCRIPTOR);
+        }
+
+        public static IBookManager asInterface(IBinder obj) {
+            if (obj == null) return null;
+            // 转换成我们需要的IBookManager对象
+            IInterface iin = obj.queryLocalInterface(DESCRIPTOR);
+            if (iin != null && iin instanceof IBookManager) {
+                return (IBookManager) iin;
+            }
+            // 使用代理再嵌套一层
+            return new Proxy(obj);
+        }
+
+        @Override
+        public IBinder asBinder() {
+            return this;
+        }
+
+        @Override
+        protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
+            switch (code) {
+                case INTERFACE_TRANSACTION: {
+                    reply.writeString(DESCRIPTOR);
+                    return true;
+                }
+                case TRANSACTION_getBookList: {
+                    data.enforceInterface(DESCRIPTOR);
+                    List<Book> list = this.getBookList();
+                    reply.writeNoException();
+                    reply.writeTypedList(list);
+                    return true;
+                }
+                case TRANSACTION_addBook: {
+                    data.enforceInterface(DESCRIPTOR);
+                    Book book;
+                    if (data.readInt() != 0) {
+                        book = Book.CREATOR.createFromParcel(data);
+                    } else {
+                        book = null;
+                    }
+                    this.addBook(book);
+                    reply.writeNoException();
+                    return true;
+                }
+            }
+            return super.onTransact(code, data, reply, flags);
+        }
+
+        // 约定俗称的做法，封一层代理，屏蔽实现细节，职责分离
+        private static class Proxy implements IBookManager {
+            private IBinder mRemote;
+
+            Proxy(IBinder remote) {
+                mRemote = remote;
+            }
+
+            @Override
+            public IBinder asBinder() {
+                return mRemote;
+            }
+
+            public String getInterfaceDescriptor() {
+                return DESCRIPTOR;
+            }
+
+            @Override
+            public List<Book> getBookList() throws RemoteException {
+                Parcel data = Parcel.obtain();
+                Parcel reply = Parcel.obtain();
+                List<Book> result;
+                try {
+                    data.writeInterfaceToken(DESCRIPTOR);
+                    mRemote.transact(TRANSACTION_getBookList, data, reply, 0);
+                    reply.readException();
+                    result = reply.createTypedArrayList(Book.CREATOR);
+                } finally {
+                    data.recycle();
+                    reply.recycle();
+                }
+                return result;
+            }
+
+            @Override
+            public void addBook(Book book) throws RemoteException {
+                Parcel data = Parcel.obtain();
+                Parcel reply = Parcel.obtain();
+                try {
+                    data.writeInterfaceToken(DESCRIPTOR);
+                    if (book != null) {
+                        data.writeInt(1);
+                        book.writeToParcel(data, 0);
+                    } else {
+                        data.writeInt(0);
+                    }
+                    mRemote.transact(TRANSACTION_addBook, data, reply, 0);
+                    reply.readException();
+                } finally {
+                    data.recycle();
+                    reply.recycle();
+                }
+            }
+        }
+    }
+}
+
+```
+
+2. 服务端  
+
+服务端是个Service，内部有一个来自IInterface.Stub的Binder对象，这是我们自定义的对象，用于Binder通信  
+
+```java
+public class BookManagerService extends Service {
+    private List<Book> mBookList = new ArrayList<>();
+
+    private final IBookManager.Stub mBinder = new IBookManager.Stub() {
+        @Override
+        public List<Book> getBookList() {
+            return mBookList;
+        }
+
+        @Override
+        public void addBook(Book book) {
+            mBookList.add(book);
+        }
+    };
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return mBinder;
+    }
+}
+
+```
+
+3. 客户端  
+
+```java
+private IBookManager bookManager;
+
+private ServiceConnection connection = new ServiceConnection() {
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder service) {
+        bookManager = IBookManager.Stub.asInterface(service);
+        try {
+            List<Book> list = bookManager.getBookList();
+            Log.d("Client", "Book List: " + list);
+            bookManager.addBook(new Book(1, "Android IPC"));
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+        bookManager = null;
+    }
+};
+
+// 绑定服务
+Intent intent = new Intent();
+intent.setComponent(new ComponentName("com.example.server", "com.example.server.BookManagerService"));
+bindService(intent, connection, Context.BIND_AUTO_CREATE);
+
+```
+
 
 # 19 AIDL是否会导致Exception传递  
 
