@@ -246,17 +246,19 @@ Glide层面的优化，主要包括——
 
 # 🔍 二、进阶机制（用于判断是否理解 Glide 的内部设计）
 
-Glide 的图片加载流程是怎样的？（大致从调用到显示的过程）
+## Glide 的图片加载流程是怎样的？（大致从调用到显示的过程）  
 
-Glide 的内存缓存和磁盘缓存是如何工作的？使用了哪些数据结构？
 
-Glide 是如何实现缓存 key 的？能手动指定吗？
 
-Glide 是如何避免重复下载同一张图片的？（比如两个 ImageView 显示相同 URL）
+## Glide 的内存缓存和磁盘缓存是如何工作的？使用了哪些数据结构？
 
-Glide 如何处理大图加载、采样缩放（Downsampling）？
+## Glide 是如何实现缓存 key 的？能手动指定吗？
 
-Glide 中的 RequestManager 和 RequestBuilder 是什么关系？
+## Glide 是如何避免重复下载同一张图片的？（比如两个 ImageView 显示相同 URL）
+
+## Glide 如何处理大图加载、采样缩放（Downsampling）？
+
+## Glide 中的 RequestManager 和 RequestBuilder 是什么关系？
 
 ## Glide 如何感知 Activity/Fragment 生命周期？怎么做到自动取消请求的？
 

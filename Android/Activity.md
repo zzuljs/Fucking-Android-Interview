@@ -334,7 +334,12 @@ startActivity(intent)
 **action匹配规则**  
 
 Intent-filter的action可以设置多条，至少一个  
+
 intent中的action只能设置一条，只要跟Intent—filter其中一条匹配即可  
+
+action提供了一些系统能力，比如系统拨号`Intent.ACTION_DIAL`  
+
+此外action也可以自定义字段  
 
 **category匹配规则**  
 
@@ -358,9 +363,19 @@ Intent-filter如果设置了data，Intent必须匹配其中一个data，每个�
 
 ## 9.3 注意事项  
 
-- 如果Activity设置了`exported=true`,此时如果是内部跳转，仍然可以跳转成功，如果是外部跳转（其他App），会报`SecurityException`  
+- 如果Activity设置了`exported=false`,此时如果是内部跳转，仍然可以跳转成功，如果是外部跳转（其他App），会报`SecurityException`    
 
-- 如果跳转的Activity不存在，会报`ActivityNotFoundException`异常
+- 如果跳转的Activity不存在，会报`ActivityNotFoundException`异常  
+
+## 9.4 对比  
+
+显示跳转常用于App内部跳转，因为类名易获得  
+
+隐式跳转常用于App外部跳转，通过一组协议来匹配跳转页面  
+
+此外，隐式跳转是组件化解耦设计，向App外部暴露一种能力，并定义了使用这种能力的规则  
+
+action决定行为（是什么），category决定类别（干什么），data规定格式和内容（scheme+host，怎么干）  
 
 # 10 scheme使用场景、协议格式、如何使用  
 
