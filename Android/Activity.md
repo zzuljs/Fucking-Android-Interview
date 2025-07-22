@@ -238,12 +238,12 @@ Binder 通信过程：
 
 onNewIntent是复用Activity实例时处理新Intent的核心方法，适用于需要动态更新界面或避免重复创建的场景，调用时机：  
 
-1. Activity的LaunchMode为时，如果Activity在栈顶，且现在要启动Activity，此时调用onNewIntent
-2. Activity的LaunchMode为SingleInstance、SingleTask时，如果Activity已经在堆栈中，此时调用onNewIntent  
+1. Activity的LaunchMode为singleTop时，如果Activity在栈顶，且现在要启动Activity，此时调用onNewIntent（singleTop是栈顶复用，如果不在栈顶，则不会回调onNewIntent，会新建实例）
+2. Activity的LaunchMode为singleInstance、singleTask时，如果Activity已经在堆栈中，此时调用onNewIntent  
 3. Activity处于任务栈顶端，现在处于onPause、onStop状态，其他应用发送Intent，执行顺序为：onNewIntent->onReStart->onStart->onResume
 
 
-Standard模式启动的Activity，不会调用onNewIntent，因为Standard模式默认新建实例，而没有复用的情况，但如果发送方Intent添加了`FLAG_ACTIVITY_SINGLE_TOP`或`FLAG_ACTIVITY_REORDER_TO_FRONT`等标志，会改变栈行为，此时会触发onNewIntent
+standard模式启动的Activity，不会调用onNewIntent，因为standard模式默认新建实例，而没有复用的情况，但如果发送方Intent添加了`FLAG_ACTIVITY_SINGLE_TOP`或`FLAG_ACTIVITY_REORDER_TO_FRONT`等标志，会改变栈行为，此时会触发onNewIntent
 
 ## 8.2 onNewIntent注意事项  
 
