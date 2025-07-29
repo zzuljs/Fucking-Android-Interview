@@ -35,3 +35,15 @@ cat ~/.ssh/id_ed25519.pub
 ```git
 git remote set-url origin <ssh-url>
 ```
+
+
+# git fetch 和 git pull 的区别
+
+- `git fetch`：只是从远程仓库获取最新的分支和提交信息，更新本地的远程分支记录，不会自动合并到当前分支。你的本地代码不会发生变化。
+
+- `git pull`：相当于先执行 `git fetch`，再自动将远程分支的最新提交合并（或 rebase）到你当前分支。你的本地代码会发生变化。
+
+**总结：**  
+- `git fetch` 只更新远程追踪分支，不影响当前工作分支。  
+- `git pull` 会把远程更新合并到当前分支，可能引发冲突，需要解决。
+
